@@ -68,6 +68,7 @@ export class AmqpTransporter implements Transporter {
             await cb(data)
             channel.ack(msg)
         }, { noAck: false })
+        return queue
     }
 
     async deleteSubscription() { }

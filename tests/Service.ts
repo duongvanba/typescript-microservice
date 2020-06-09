@@ -1,4 +1,4 @@
-import { RPCService, AllowFromRemote, SubcribeTopic } from "../src";
+import { RPCService, AllowFromRemote, SubcribeTopic, OnMicroserviceReady } from "../src";
 import { AmqpTransporter } from "../src/transporters/AmqpTransporter";
 import { TypescriptMicroservice } from "../src/TypescriptMicroservice";
 import { Encoder } from "../src/Encoder";
@@ -17,8 +17,9 @@ export class Service {
 
     @AllowFromRemote({ limit: 1 })
     async sum(a: number, b: number) {
-        console.log(`Caculate ${a} + ${b} = ${a + b}`)
+        console.log(`Caculate ${a} + ${b}`)
         await new Promise(s => setTimeout(s, 5000))
+        // console.log(` = ${a + b}`)
         return a + b
     }
 
@@ -27,15 +28,22 @@ export class Service {
     async listen(msg) {
         console.log(msg)
     }
+
+
+    @OnMicroserviceReady()
+    async onready() {
+        console.log('Service inited')
+    }
 }
+
+
 
 if (process.argv[1] == __filename) {
     setImmediate(async () => {
-        const tsms = await TypescriptMicroservice.init(new GooglePubSubTransporter())
+        console.log('Init connector')
+        await TypescriptMicroservice.init(new GooglePubSubTransporter())
         console.log("Active RPC service")
-        new Service()
-        console.log('Connect to mesage bus')
-        console.log('Ready')
+        new Service() 
     })
 
 } else {

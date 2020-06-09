@@ -8,8 +8,8 @@ import { v4 } from 'uuid'
 
 export class GooglePubSubTransporter implements Transporter {
 
-    private client = new PubSub() 
-    
+    private client = new PubSub()
+
     async createTopic(name: string) {
         try {
             await this.client.createTopic(name)
@@ -36,7 +36,7 @@ export class GooglePubSubTransporter implements Transporter {
         process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] Listen topic [${topic}]  with subscription [${subscription_name}]`, JSON.stringify(options, null, 2))
 
         try {
-            await this.client.createSubscription(topic, subscription_name, { filter: options.routing, })
+            await this.client.createSubscription(topic, subscription_name, { filter: options.routing })
         } catch (e) {
             const [code] = e.message.split(' ')
             if (code != 6) throw e
@@ -60,6 +60,7 @@ export class GooglePubSubTransporter implements Transporter {
         };
 
         subscription.on('message', messageHandler)
+        return subscription_name
     }
 
     async deleteSubscription(name: string) {

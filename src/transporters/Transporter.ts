@@ -20,7 +20,7 @@ export interface Transporter {
     deleteTopic(name: string): Promise<void>
     deleteSubscription(name: string): Promise<void>
     publish(topic: string, data: Buffer, options?: PublishOptions): Promise<any>
-    listen(topic: string, cb: CallBackFunction, options?: ListenOptions): Promise<any>
+    listen(topic: string, cb: CallBackFunction, options?: ListenOptions): Promise<string>
 }
 
 
