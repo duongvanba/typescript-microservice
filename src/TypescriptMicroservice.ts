@@ -22,6 +22,8 @@ type RPCRequestOptions = RemoteServiceRequestOptions & {
     args: any
 }
 
+export type RemoteRPCService<T> = T & { set: (config: RemoteServiceRequestOptions) => T, fetch: (config?: RemoteServiceRequestOptions) => T }
+
 export class TypescriptMicroservice {
 
     static framework: TypescriptMicroservice
@@ -149,7 +151,7 @@ export class TypescriptMicroservice {
 
                 return call(method, true, { wait_result: true })
             }
-        }) as T & { set: (config: RemoteServiceRequestOptions) => T, fetch: (config?: RemoteServiceRequestOptions) => T }
+        }) as RemoteRPCService<T>
     }
 
 

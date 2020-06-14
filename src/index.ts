@@ -4,5 +4,5 @@ export { AllowFromRemote, AllowFromRemoteOptions } from './decorators/AllowFromR
 export { SubcribeTopic, SubcribeTopicOptions } from './decorators/SubcribeTopic'
 export { OnMicroserviceReady } from './decorators/OnMicroserviceReady'
 export { RPCService } from './decorators/RPCService'
-export { RemoteRPCService } from './nestjs-helper'
-
+export { ConnectRemoteRPCService } from './nestjs-helper'
+export { RemoteRPCService } from './TypescriptMicroservice'
