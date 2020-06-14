@@ -3,14 +3,17 @@ export type PublishOptions = {
     reply_to?: string,
     routing?: string
 }
-export type Message = { id?: string, reply_to?: string, content: Buffer, created_time: number }
+
+
+export type Message = { id?: string, reply_to?: string, content: Buffer, created_time: number, delivery_attempt: number }
 
 export type CallBackFunction = (data: Message) => any
 
 export type ListenOptions = {
     fanout?: boolean,
     limit?: number,
-    routing?: string
+    routing?: string,
+    dead_topic?: string
 }
 
 
@@ -20,7 +23,7 @@ export interface Transporter {
     deleteTopic(name: string): Promise<void>
     deleteSubscription(name: string): Promise<void>
     publish(topic: string, data: Buffer, options?: PublishOptions): Promise<any>
-    listen(topic: string, cb: CallBackFunction, options?: ListenOptions): Promise<string>
+    listen(topic: string, cb: CallBackFunction, options: ListenOptions): Promise<string>
 }
 
 

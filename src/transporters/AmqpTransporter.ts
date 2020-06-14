@@ -2,6 +2,7 @@ import { connect, Channel, Connection } from "amqplib-as-promised";
 import { Message } from 'amqplib'
 import { Message as TransporterMessage } from './Transporter'
 import { Transporter, ListenOptions, CallBackFunction, PublishOptions } from './Transporter'
+import { TypescriptMicroservice } from "../TypescriptMicroservice";
 
 
 export class AmqpTransporter implements Transporter {
@@ -54,7 +55,13 @@ export class AmqpTransporter implements Transporter {
 
     async listen(topic: string, cb: CallBackFunction, options: ListenOptions = {}) {
         const channel = await this.getChannel(options)
-        const { queue } = await channel.assertQueue(options.fanout ? '' : `${topic}${options.routing || ''}`, { autoDelete: true })
+        const { queue } = await channel.assertQueue(options.fanout ? '' : `${topic}${options.routing || ''}`, {
+            autoDelete: true,
+            ...options.dead_topic ? {
+                deadLetterExchange: TypescriptMicroservice.dead_topic,
+                deadLetterRoutingKey: '#'
+            } : {}
+        })
         process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] Listen topic [${topic}] => bind to queue [${queue}]`, JSON.stringify(options, null, 2))
         await channel.bindQueue(queue, topic, options.routing || '#')
         await channel.consume(queue, async (msg: Message) => {
@@ -63,7 +70,8 @@ export class AmqpTransporter implements Transporter {
                 content,
                 created_time: timestamp,
                 id: messageId,
-                reply_to: replyTo
+                reply_to: replyTo,
+                delivery_attempt: msg.properties.headers["x-death"].length
             }
             await cb(data)
             channel.ack(msg)

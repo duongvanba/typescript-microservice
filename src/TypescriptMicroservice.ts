@@ -6,9 +6,9 @@ import { Encoder } from "./Encoder";
 import { SubcribeTopicOptions } from "./decorators/SubcribeTopic";
 import { OMIT_EVENTS } from "./const";
 
-const ResponseCallbackList = new Map<string, { reject: Function, success: Function }>()
+const ResponseCallbackList = new Map<string, { reject: Function, success: Function, deadline: number }>()
 
-type RemoteServiceResponse = { success: boolean, data?: any, message?: string }
+type RemoteServiceResponse = { ping?: boolean, success: boolean, data?: any, message?: string }
 
 type RemoteServiceRouteRequestOptions = { route?: string }
 
@@ -26,9 +26,9 @@ export class TypescriptMicroservice {
 
     static framework: TypescriptMicroservice
 
+    private static readonly rpc_topic = 'typescript-microservice-rpc-topic-' + v4()
+    static readonly dead_topic = `${process.env.TS_MS_PREFIX ? process.env.TS_MS_PREFIX + '-' : ''}dead-topic`
 
-
-    private rpc_topic = 'typescript-microservice-rpc-topic-' + v4()
 
     constructor(private transporter: Transporter) {
         process.on('exit', () => this.cleanup('exit'));
@@ -38,34 +38,55 @@ export class TypescriptMicroservice {
     }
 
     private cleaning = false
-    private tmp_topics = new Set<string>([this.rpc_topic])
-    private tmp_subscrioptions = new Set<string>([this.rpc_topic])
+    private tmp_subscrioptions = new Set<string>([TypescriptMicroservice.rpc_topic])
 
     async cleanup(event: string) {
         if (this.cleaning) return
-        process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] App exit due to [${event}] event, cleaning tmp topics and subscriptions ...`)
+        process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] App exit due to[${event}]event, cleaning tmp topics and subscriptions ...`)
         this.cleaning = true
 
         for (const subscription of this.tmp_subscrioptions) await this.transporter.deleteSubscription(subscription)
-        for (const topic of this.tmp_topics) await this.transporter.deleteTopic(topic)
+        await this.transporter.deleteTopic(TypescriptMicroservice.rpc_topic)
         process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] Done`)
         process.exit()
     }
 
     static async init(transporter: Transporter) {
+
         const tsms = new this(transporter)
 
+        // Dead exchange
+        await tsms.transporter.createTopic(TypescriptMicroservice.dead_topic)
+        await tsms.transporter.listen(TypescriptMicroservice.dead_topic, async msg => {
+            const response: RemoteServiceResponse = { success: false, message: 'Can not send RPC request' }
+            tsms.transporter.publish(msg.reply_to, Buffer.from(JSON.stringify(response)))
+        }, { fanout: false })
+
         // Listen response 
-        await tsms.transporter.createTopic(tsms.rpc_topic)
-        await tsms.transporter.listen(tsms.rpc_topic, async (msg) => {
+        await tsms.transporter.createTopic(TypescriptMicroservice.rpc_topic)
+        await tsms.transporter.listen(TypescriptMicroservice.rpc_topic, async (msg) => {
             const response = Encoder.decode<RemoteServiceResponse>(msg.content)
             if (ResponseCallbackList.has(msg.id)) {
+                if (response.ping) return ResponseCallbackList.get(msg.id).deadline = Date.now() + 10000
                 const { success, reject } = ResponseCallbackList.get(msg.id)
                 response.success ? success(response.data) : reject(response.message)
             }
-        })
+        }, { fanout: false })
         this.framework = tsms
+        this.watch_deadline_rpc()
         return tsms
+    }
+
+    private static async watch_deadline_rpc() {
+        while (true) {
+            for (const [id, { deadline, reject }] of ResponseCallbackList) {
+                if (Date.now() > deadline) {
+                    reject('RPC_TIMEOUT')
+                    ResponseCallbackList.delete(id)
+                }
+            }
+            await new Promise(s => setTimeout(s, 5000))
+        }
     }
 
     private get_name(service_or_topic: string, method?: string) {
@@ -73,7 +94,9 @@ export class TypescriptMicroservice {
     }
 
     async publish(name: string, data: any, routing?: string) {
-        await this.transporter.publish(this.get_name(name), Encoder.encode(data), routing ? { routing } : {})
+        await this.transporter.publish(this.get_name(name), Encoder.encode(data), {
+            ...routing ? { routing } : {}
+        })
     }
 
     async rpc(config: RPCRequestOptions) {
@@ -82,11 +105,11 @@ export class TypescriptMicroservice {
         const topic = this.get_name(service, method)
         return await new Promise(async (success, reject) => {
 
-            config.wait_result && ResponseCallbackList.set(id, { success, reject })
+            config.wait_result && ResponseCallbackList.set(id, { success, reject, deadline: Date.now() + 5000 })
 
             await this.transporter.publish(this.get_name(topic), Encoder.encode(args), {
                 id,
-                ...config.wait_result ? { reply_to: this.rpc_topic } : {},
+                ...config.wait_result ? { reply_to: TypescriptMicroservice.rpc_topic } : {},
                 ...config.route ? { routing: config.route } : {}
             })
 
@@ -94,11 +117,23 @@ export class TypescriptMicroservice {
         })
     }
 
-    async link_remote_service<T>(service: string, exclude_methods: string[] = []) {
+    async link_remote_service<T>(service: any, exclude_methods: string[] = []) {
+
+        const service_name = typeof service == 'string' ? service : (service.name || Object.getPrototypeOf(service).constructor.name)
 
         const call = (method: string | symbol | number, call_method: boolean = true, options: RemoteServiceRequestOptions = {}) => {
             if (typeof method != 'string' || [...OMIT_EVENTS, ...exclude_methods].includes(method)) return null
-            return call_method ? (...args: any[]) => this.rpc({ args, method, service, ...options }) : this.rpc({ args: null, method, service, ...options })
+            return call_method ? (...args: any[]) => this.rpc({
+                args,
+                method,
+                service: service_name,
+                ...options
+            }) : this.rpc({
+                args: null,
+                method,
+                service: service_name,
+                ...options
+            })
         }
 
         return new Proxy({}, {
@@ -132,24 +167,30 @@ export class TypescriptMicroservice {
 
 
         for (const { method, limit, routing } of methods) {
-            process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] Active local service [${service}.${method}]`, JSON.stringify({ limit, routing }, null, 2))
+            process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] Active local service[${service}.${method}]`, JSON.stringify({ limit, routing }, null, 2))
             const topic = this.get_name(service, method)
             await this.transporter.createTopic(topic)
             await this.transporter.listen(`${process.env.TS_MS_PREFIX ? process.env.TS_MS_PREFIX + '|' : ''}${topic}`, async msg => {
+                // Keep deadline
+                const keep_deadline_interval = setInterval(() => {
+                    this.transporter.publish(msg.reply_to, Encoder.encode({ ping: true } as RemoteServiceResponse), { id: msg.id })
+                }, 7000)
+
+                let response: RemoteServiceResponse
+
                 try {
                     const args = Encoder.decode(msg.content)
-                    process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] Remote call ${service}.${method} args ${JSON.stringify(args)}`)
+                    process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] Remote call ${service}.${method} args ${JSON.stringify(args)} `)
                     const data = args ? await (target[method] as Function).apply(target, args) : target[method]
-                    if (msg.reply_to && msg.id) {
-                        const response: RemoteServiceResponse = { success: true, data }
-                        await this.transporter.publish(msg.reply_to, Encoder.encode(response), { id: msg.id })
-                    }
+                    if (msg.reply_to && msg.id) response = { success: true, data }
                 } catch (e) {
-                    if (msg.reply_to && msg.id) {
-                        const response: RemoteServiceResponse = { success: false, message: e }
-                        await this.transporter.publish(msg.reply_to, Encoder.encode(response), { id: msg.id })
-                    }
+                    if (msg.reply_to && msg.id) response = { success: false, message: e }
                 }
+                try {
+                    response && await this.transporter.publish(msg.reply_to, Encoder.encode(response), { id: msg.id })
+                } catch (e) { }
+
+                clearInterval(keep_deadline_interval)
 
             }, { limit, routing, fanout: false })
         }
@@ -158,7 +199,7 @@ export class TypescriptMicroservice {
     private async active_topic_subscriber(target: any) {
         const methods = (Reflect.getMetadata(TOPIC_SUBSCRIBES, target) || []) as SubcribeTopicOptions[]
         for (const { method, limit, topic, fanout } of methods) {
-            process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] Active topic listener [${topic}] on [${Object.getPrototypeOf(target).constructor.name}.${method}]`)
+            process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] Active topic listener[${topic}]on[${Object.getPrototypeOf(target).constructor.name}.${method}]`)
             await this.transporter.createTopic(this.get_name(topic))
             const subscription_name = await this.transporter.listen(this.get_name(topic), async msg => {
                 try {

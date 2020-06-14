@@ -9,17 +9,20 @@ setImmediate(async () => {
 
 
     console.log('Connect remote service')
-    const service = await TypescriptMicroservice.framework.link_remote_service<Service>('Service')
+    const service = await TypescriptMicroservice.framework.link_remote_service<Service>(Service)
     console.log('Request RPC')
 
     console.log('Test limit & queue')
 
-    for (let i = 1; i <= 10; i++) {
-        console.log('Send ' + i)
-        await service.sum(i, 0)
-        console.log('Received ' + i)
-        console.log(i)
-    }
+    console.log('Send caculate')
+    console.log(`1+2 = `, await service.sum(1, 2))
+
+    // for (let i = 1; i <= 10; i++) {
+    //     console.log('Send ' + i)
+    //     await service.sum(i, 0)
+    //     console.log('Received ' + i)
+    //     console.log(i)
+    // }
 
     // console.log(`Publish msg = 'ahihi'`)
     // await TypescriptMicroservice.framework.publish('ahihi', 'ahihi')
