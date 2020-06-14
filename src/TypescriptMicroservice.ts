@@ -61,10 +61,7 @@ export class TypescriptMicroservice {
         await tsms.transporter.listen(TypescriptMicroservice.rpc_topic, async (msg) => {
             const response = Encoder.decode<RemoteServiceResponse>(msg.content)
             if (ResponseCallbackList.has(msg.id)) {
-                if (response.ping) {
-                    console.log('Received ping')
-                    return ResponseCallbackList.get(msg.id).deadline = Date.now() + 10000
-                }
+                if (response.ping) return ResponseCallbackList.get(msg.id).deadline = Date.now() + 10000
                 const { success, reject } = ResponseCallbackList.get(msg.id)
                 response.success ? success(response.data) : reject(response.message)
             }
@@ -100,6 +97,7 @@ export class TypescriptMicroservice {
         const { method, args, service } = config
         const id = v4()
         const topic = this.get_name(service, method)
+
         return await new Promise(async (success, reject) => {
 
             config.wait_result && ResponseCallbackList.set(id, { success, reject, deadline: Date.now() + 10000 })
@@ -169,28 +167,22 @@ export class TypescriptMicroservice {
             await this.transporter.createTopic(topic)
             await this.transporter.listen(`${process.env.TS_MS_PREFIX ? process.env.TS_MS_PREFIX + '|' : ''}${topic}`, async msg => {
                 // Keep deadline
-                console.log('New message')
                 const keep_deadline_interval = setInterval(() => {
-                    console.log('Send ping')
                     this.transporter.publish(msg.reply_to, Encoder.encode({ ping: true } as RemoteServiceResponse), { id: msg.id })
-                }, 1000)
-                console.log('YEah')
+                }, 7000)
 
                 let response: RemoteServiceResponse
 
                 try {
                     const args = Encoder.decode(msg.content)
                     process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] Remote call ${service}.${method} args ${JSON.stringify(args)} `)
-                    const data = args ? await (target[method] as Function).apply(target, args) : target[method]
+                    const data = args ? await (target[method] as Function).apply(Object.assign(target, { request_time: msg.created_time }), args) : target[method]
                     if (msg.reply_to && msg.id) response = { success: true, data }
                 } catch (e) {
                     if (msg.reply_to && msg.id) response = { success: false, message: e }
                 }
-                try {
-                    response && await this.transporter.publish(msg.reply_to, Encoder.encode(response), { id: msg.id })
-                } catch (e) { }
 
-                console.log('Clear interval')
+                response && await this.transporter.publish(msg.reply_to, Encoder.encode(response), { id: msg.id })
                 clearInterval(keep_deadline_interval)
 
             }, { limit, routing, fanout: fanout ?? false })
@@ -204,7 +196,7 @@ export class TypescriptMicroservice {
             await this.transporter.createTopic(this.get_name(topic))
             const subscription_name = await this.transporter.listen(this.get_name(topic), async msg => {
                 try {
-                    await (target[method] as Function)(Encoder.decode(msg.content))
+                    await (target[method] as Function).call(Object.assign(target, { request_time: msg.created_time }), Encoder.decode(msg.content))
                 } catch (e) {
                 }
             }, { limit, fanout: fanout ?? true })

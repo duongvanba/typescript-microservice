@@ -15,11 +15,11 @@ export class Service {
     @AllowFromRemote()
     public a = 1
 
-    @AllowFromRemote({ limit: 1, routing: () => `attributes.id = "2"` })
+    @AllowFromRemote({ limit: 1, routing: () => `attributes.r = "1"`, fanout: false })
     async sum(a: number, b: number) {
+        console.log('Request time : ' + (this as any).request_time)
         console.log(`Caculate ${a} + ${b}`)
-        await new Promise(s => setTimeout(s, 5000))
-        // console.log(` = ${a + b}`)
+        await new Promise(s => setTimeout(s, 20000))
         return a + b
     }
 

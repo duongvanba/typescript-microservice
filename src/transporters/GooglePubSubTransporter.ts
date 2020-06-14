@@ -22,7 +22,15 @@ export class GooglePubSubTransporter implements Transporter {
     async publish(topic: string, data: Buffer, options: PublishOptions = {}) {
         process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] Publish to topic [${topic}]`, JSON.stringify(options, null, 2))
         const { id, routing, reply_to } = options
-        await this.client.topic(topic).publish(data, undefined_filter({ id, reply_to, ... typeof routing == 'object' ? routing : {} }))
+        if (routing) {
+            if ((routing as any).id != undefined || (routing as any).reply_to != undefined) throw 'INVAILD_ROUTING_KEY You can not use "id" or "reply_to" in routing condition'
+        }
+        const opts = undefined_filter({ id, reply_to, ... typeof routing == 'object' ? routing : {} })
+        try {
+            await this.client.topic(topic).publish(data, opts)
+        } catch (e) {
+            console.log(e.message)
+        }
     }
 
     async listen(topic: string, cb: CallBackFunction, options: ListenOptions = {}) {
