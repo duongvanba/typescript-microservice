@@ -15,7 +15,7 @@ export class Service {
     @AllowFromRemote()
     public a = 1
 
-    @AllowFromRemote({ limit: 1 })
+    @AllowFromRemote({ limit: 1, routing: () => `attributes.id = "2"` })
     async sum(a: number, b: number) {
         console.log(`Caculate ${a} + ${b}`)
         await new Promise(s => setTimeout(s, 5000))
@@ -43,7 +43,7 @@ if (process.argv[1] == __filename) {
         console.log('Init connector')
         await TypescriptMicroservice.init(new GooglePubSubTransporter())
         console.log("Active RPC service")
-        new Service() 
+        new Service()
     })
 
 } else {

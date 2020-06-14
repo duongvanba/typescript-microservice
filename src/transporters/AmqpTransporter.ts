@@ -56,11 +56,7 @@ export class AmqpTransporter implements Transporter {
     async listen(topic: string, cb: CallBackFunction, options: ListenOptions = {}) {
         const channel = await this.getChannel(options)
         const { queue } = await channel.assertQueue(options.fanout ? '' : `${topic}${options.routing || ''}`, {
-            autoDelete: true,
-            ...options.dead_topic ? {
-                deadLetterExchange: TypescriptMicroservice.dead_topic,
-                deadLetterRoutingKey: '#'
-            } : {}
+            autoDelete: true 
         })
         process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] Listen topic [${topic}] => bind to queue [${queue}]`, JSON.stringify(options, null, 2))
         await channel.bindQueue(queue, topic, options.routing || '#')

@@ -10,7 +10,7 @@ const ResponseCallbackList = new Map<string, { reject: Function, success: Functi
 
 type RemoteServiceResponse = { ping?: boolean, success: boolean, data?: any, message?: string }
 
-type RemoteServiceRouteRequestOptions = { route?: string }
+type RemoteServiceRouteRequestOptions = { route?: any }
 
 type RemoteServiceRequestOptions = RemoteServiceRouteRequestOptions & {
     wait_result?: boolean
@@ -29,7 +29,6 @@ export class TypescriptMicroservice {
     static framework: TypescriptMicroservice
 
     private static readonly rpc_topic = 'typescript-microservice-rpc-topic-' + v4()
-    static readonly dead_topic = `${process.env.TS_MS_PREFIX ? process.env.TS_MS_PREFIX + '-' : ''}dead-topic`
 
 
     constructor(private transporter: Transporter) {
@@ -57,19 +56,15 @@ export class TypescriptMicroservice {
 
         const tsms = new this(transporter)
 
-        // Dead exchange
-        await tsms.transporter.createTopic(TypescriptMicroservice.dead_topic)
-        await tsms.transporter.listen(TypescriptMicroservice.dead_topic, async msg => {
-            const response: RemoteServiceResponse = { success: false, message: 'Can not send RPC request' }
-            tsms.transporter.publish(msg.reply_to, Buffer.from(JSON.stringify(response)))
-        }, { fanout: false })
-
         // Listen response 
         await tsms.transporter.createTopic(TypescriptMicroservice.rpc_topic)
         await tsms.transporter.listen(TypescriptMicroservice.rpc_topic, async (msg) => {
             const response = Encoder.decode<RemoteServiceResponse>(msg.content)
             if (ResponseCallbackList.has(msg.id)) {
-                if (response.ping) return ResponseCallbackList.get(msg.id).deadline = Date.now() + 10000
+                if (response.ping) {
+                    console.log('Received ping')
+                    return ResponseCallbackList.get(msg.id).deadline = Date.now() + 10000
+                }
                 const { success, reject } = ResponseCallbackList.get(msg.id)
                 response.success ? success(response.data) : reject(response.message)
             }
@@ -107,12 +102,12 @@ export class TypescriptMicroservice {
         const topic = this.get_name(service, method)
         return await new Promise(async (success, reject) => {
 
-            config.wait_result && ResponseCallbackList.set(id, { success, reject, deadline: Date.now() + 5000 })
+            config.wait_result && ResponseCallbackList.set(id, { success, reject, deadline: Date.now() + 10000 })
 
             await this.transporter.publish(this.get_name(topic), Encoder.encode(args), {
                 id,
-                ...config.wait_result ? { reply_to: TypescriptMicroservice.rpc_topic } : {},
-                ...config.route ? { routing: config.route } : {}
+                reply_to: TypescriptMicroservice.rpc_topic,
+                routing: config.route
             })
 
             !config.wait_result && success()
@@ -165,18 +160,21 @@ export class TypescriptMicroservice {
 
     private async active_local_service(target: any) {
         const service = Object.getPrototypeOf(target).constructor.name
-        const methods = Reflect.getMetadata(ALLOW_FROM_REMOTE_METHODS, target) || [] as AllowFromRemoteOptions[]
+        const methods = (Reflect.getMetadata(ALLOW_FROM_REMOTE_METHODS, target) || []) as AllowFromRemoteOptions[]
 
 
-        for (const { method, limit, routing } of methods) {
+        for (const { method, limit, routing, fanout } of methods) {
             process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] Active local service[${service}.${method}]`, JSON.stringify({ limit, routing }, null, 2))
             const topic = this.get_name(service, method)
             await this.transporter.createTopic(topic)
             await this.transporter.listen(`${process.env.TS_MS_PREFIX ? process.env.TS_MS_PREFIX + '|' : ''}${topic}`, async msg => {
                 // Keep deadline
+                console.log('New message')
                 const keep_deadline_interval = setInterval(() => {
+                    console.log('Send ping')
                     this.transporter.publish(msg.reply_to, Encoder.encode({ ping: true } as RemoteServiceResponse), { id: msg.id })
-                }, 7000)
+                }, 1000)
+                console.log('YEah')
 
                 let response: RemoteServiceResponse
 
@@ -192,9 +190,10 @@ export class TypescriptMicroservice {
                     response && await this.transporter.publish(msg.reply_to, Encoder.encode(response), { id: msg.id })
                 } catch (e) { }
 
+                console.log('Clear interval')
                 clearInterval(keep_deadline_interval)
 
-            }, { limit, routing, fanout: false })
+            }, { limit, routing, fanout: fanout ?? false })
         }
     }
 
@@ -208,7 +207,7 @@ export class TypescriptMicroservice {
                     await (target[method] as Function)(Encoder.decode(msg.content))
                 } catch (e) {
                 }
-            }, { limit, fanout })
+            }, { limit, fanout: fanout ?? true })
             fanout && this.tmp_subscrioptions.add(subscription_name)
         }
     }

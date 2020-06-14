@@ -12,8 +12,7 @@ export type CallBackFunction = (data: Message) => any
 export type ListenOptions = {
     fanout?: boolean,
     limit?: number,
-    routing?: string,
-    dead_topic?: string
+    routing?: any
 }
 
 

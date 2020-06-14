@@ -1,9 +1,9 @@
 import { PubSub, Message } from '@google-cloud/pubsub'
 import { Transporter, ListenOptions, CallBackFunction, PublishOptions } from './Transporter'
-import { Encoder } from '../Encoder'
 import { v4 } from 'uuid'
 import { Message as TransportMessage } from './Transporter'
-
+import { createHash } from 'crypto'
+import { undefined_filter } from '../helpers/undefined_filter'
 
 
 export class GooglePubSubTransporter implements Transporter {
@@ -21,7 +21,8 @@ export class GooglePubSubTransporter implements Transporter {
 
     async publish(topic: string, data: Buffer, options: PublishOptions = {}) {
         process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] Publish to topic [${topic}]`, JSON.stringify(options, null, 2))
-        await this.client.topic(topic).publish(data, options)
+        const { id, routing, reply_to } = options
+        await this.client.topic(topic).publish(data, undefined_filter({ id, reply_to, ... typeof routing == 'object' ? routing : {} }))
     }
 
     async listen(topic: string, cb: CallBackFunction, options: ListenOptions = {}) {
@@ -31,19 +32,16 @@ export class GooglePubSubTransporter implements Transporter {
             },
         } : {}
 
-        const subscription_name = options.fanout ? `${topic}.${v4()}` : topic
+        const routing = typeof options.routing == 'function' ? await options.routing() : options.routing
+        const subscription_name = `${topic}${routing ? '-' + createHash('md5').update(routing).digest('hex') : ''}${options.fanout ? '.' + v4() : ''}`
 
-        process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] Listen topic [${topic}]  with subscription [${subscription_name}]`, JSON.stringify(options, null, 2))
+        process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] Listen topic [${topic}]  with subscription [${subscription_name}] filter [${options.routing}]`, JSON.stringify(options, null, 2))
 
         try {
+            // const sub_name = `${topic}${routing ? '-' + createHash('md5').update(routing).digest('hex') : ''}`
             await this.client.createSubscription(topic, subscription_name, {
-                filter: options.routing,
-                ackDeadlineSeconds: 600,
-                ...options.dead_topic ? {
-                    deadLetterPolicy: {
-                        deadLetterTopic: options.dead_topic
-                    }
-                } : {}
+                filter: routing,
+                ackDeadlineSeconds: 600
             })
         } catch (e) {
             const [code] = e.message.split(' ')
