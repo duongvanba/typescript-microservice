@@ -80,7 +80,7 @@ export class GooglePubSubTransporter implements Transporter {
             clearInterval(interval_extend_job)
         };
 
-        subscription.on('message', messageHandler)
+        subscription.on('message', messageHandler)  
         return subscription_name
     }
 
