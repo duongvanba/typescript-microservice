@@ -35,7 +35,7 @@ export class TypescriptMicroservice {
 
     private cleaning = false
     private tmp_subscrioptions = new Set<string>([TypescriptMicroservice.rpc_topic])
-    async cleanup(event: string) {
+    private async cleanup(event: string) {
         if (this.cleaning) return
         process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] App exit due to[${event}]event, cleaning tmp topics and subscriptions ...`)
         this.cleaning = true
@@ -127,7 +127,11 @@ export class TypescriptMicroservice {
 
         return await new Promise(async (success, reject) => {
 
-            config.wait_result && ResponseCallbackList.set(id, { success, reject, deadline: config.timeout && Date.now() + config.timeout })
+            config.wait_result && ResponseCallbackList.set(id, {
+                success,
+                reject,
+                deadline: config.timeout && Date.now() + config.timeout
+            })
 
             await this.transporter.publish(get_name(topic), Encoder.encode(args), {
                 id,
@@ -176,7 +180,7 @@ export class TypescriptMicroservice {
 
 
 
-    async active(target: any) {
+    private async active(target: any) {
         await this.active_local_service(target)
         await this.active_topic_subscriber(target)
         const on_ready_hooks = Reflect.getMetadata(ON_MICROSERVICE_READY, target) || []

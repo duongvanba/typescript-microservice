@@ -1,4 +1,4 @@
 import { TypescriptMicroservice } from "../TypescriptMicroservice";
 
 
-export const RPCService = TypescriptMicroservice.wrapper
+export const RPCService = TypescriptMicroservice.wrapper as any

@@ -5,11 +5,11 @@ import { GooglePubSubTransporter } from "../src/transporters/GooglePubSubTranspo
 
 setImmediate(async () => {
     console.log('Init connector')
-    await TypescriptMicroservice.init(new GooglePubSubTransporter())
+    const ms = await TypescriptMicroservice.init(new GooglePubSubTransporter())
 
 
     console.log('Connect remote service')
-    const service = await TypescriptMicroservice.framework.link_remote_service<Service>(Service)
+    const service = await ms.link_remote_service<Service>(Service)
     console.log('Request RPC')
 
     console.log('Test limit & queue')

@@ -1,5 +1,6 @@
 function replacer(key, value) {
-    const originalObject = this[key];
+    const originalObject = this[key]
+    
     if (originalObject instanceof Map) {
         return {
             __dataType: 'Map',
