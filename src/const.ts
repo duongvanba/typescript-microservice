@@ -6,3 +6,5 @@ export const OMIT_EVENTS = [
     'beforeApplicationShutdown',
     'onApplicationShutdown'
 ]
+
+export const RPC_OFFLINE_TIME = Number(process.env.TSMS_RPC_OFFLINE_TIME || 10000)

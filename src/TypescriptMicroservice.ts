@@ -4,17 +4,19 @@ import { TOPIC_SUBSCRIBES, ALLOW_FROM_REMOTE_METHODS, ON_MICROSERVICE_READY } fr
 import { AllowFromRemoteOptions } from "./decorators/AllowFromRemote";
 import { Encoder } from "./Encoder";
 import { SubcribeTopicOptions } from "./decorators/SubcribeTopic";
-import { OMIT_EVENTS } from "./const";
+import { OMIT_EVENTS, RPC_OFFLINE_TIME } from "./const";
 import { get_name } from "./helpers/get_name";
 import { RemoteServiceResponse, RPCRequestOptions, RemoteServiceRequestOptions, RemoteServiceRouteRequestOptions, RemoteRPCService } from "./types";
+import { PingInterval } from "./helpers/ping_intervel";
+import { sleep } from './helpers/sleep'
 
-const OnlineServices = new Map<string, number>()
 
 const ResponseCallbackList = new Map<string, {
     reject: Function,
     success: Function,
-    deadline?: number
-    processing_by?: string
+    requested_time: number,
+    timeout?: number
+    last_ping?: number
 }>()
 
 
@@ -33,6 +35,7 @@ export class TypescriptMicroservice {
         process.on('SIGUSR2', () => this.cleanup('SIGUSR2'));
     }
 
+    // Cleanup
     private cleaning = false
     private tmp_subscrioptions = new Set<string>([TypescriptMicroservice.rpc_topic])
     private async cleanup(event: string) {
@@ -62,23 +65,12 @@ export class TypescriptMicroservice {
         const tsms = new this(transporter)
         this.framework = tsms
 
-        // Setup heartbeat
-        await transporter.createTopic('heart-beat')
-        transporter.listen('heart-beat', async msg => {
-            const heartbeat = Encoder.decode<{ id: string }>(msg.content)
-            OnlineServices.set(heartbeat.id, Date.now())
-        }, { fanout: true })
-        const heartbeat = () => transporter.publish('heart-beat', Encoder.encode({
-            id: TypescriptMicroservice.service_session_id
-        }))
-        setInterval(heartbeat, 10000)
-
         // Listen response 
         await transporter.createTopic(TypescriptMicroservice.rpc_topic)
         await transporter.listen(TypescriptMicroservice.rpc_topic, async (msg) => {
             const response = Encoder.decode<RemoteServiceResponse>(msg.content)
             if (ResponseCallbackList.has(msg.id)) {
-                if (response.confirm) return ResponseCallbackList.get(msg.id).processing_by = response.confirm
+                if (response.confirm) return ResponseCallbackList.get(msg.id).last_ping = Date.now()
                 const { success, reject } = ResponseCallbackList.get(msg.id)
                 response.success ? success(response.data) : reject(response.message)
             }
@@ -88,27 +80,24 @@ export class TypescriptMicroservice {
         this.rpc_monitor()
 
         // Heartbeat
-        heartbeat()
         return tsms
     }
 
     private static async rpc_monitor() {
         while (true) {
-            for (const [service_name, last_seen] of OnlineServices) {
-                if (Date.now() - last_seen > 11000) OnlineServices.delete(service_name)
-            }
 
-            for (const [id, { reject, deadline, processing_by }] of ResponseCallbackList) {
-                if (Date.now() > deadline) {
+            for (const [id, { reject, timeout, requested_time, last_ping }] of ResponseCallbackList) {
+                if (!last_ping && Date.now() - requested_time > RPC_OFFLINE_TIME + 3000) {
+                    reject('RPC_OFFLINE')
+                    ResponseCallbackList.delete(id)
+                }
+
+                if (Date.now() - requested_time > timeout) {
                     reject('RPC_TIMEOUT')
                     ResponseCallbackList.delete(id)
                 }
-                if (!OnlineServices.has(processing_by)) {
-                    reject('SERVICE_OFFLINE')
-                    ResponseCallbackList.delete(id)
-                }
             }
-            await new Promise(s => setTimeout(s, 5000))
+            await sleep(5000)
         }
     }
 
@@ -130,7 +119,8 @@ export class TypescriptMicroservice {
             config.wait_result && ResponseCallbackList.set(id, {
                 success,
                 reject,
-                deadline: config.timeout && Date.now() + config.timeout
+                timeout: config.timeout,
+                requested_time: Date.now()
             })
 
             await this.transporter.publish(get_name(topic), Encoder.encode(args), {
@@ -197,8 +187,13 @@ export class TypescriptMicroservice {
             const topic = get_name(service, method)
             await this.transporter.createTopic(topic)
             await this.transporter.listen(`${process.env.TS_MS_PREFIX ? process.env.TS_MS_PREFIX + '|' : ''}${topic}`, async msg => {
+
                 // Keep deadline
-                this.transporter.publish(msg.reply_to, Encoder.encode({ confirm: TypescriptMicroservice.service_session_id } as RemoteServiceResponse), { id: msg.id })
+                const prevent_timeout = setInterval(() => this.transporter.publish(
+                    msg.reply_to,
+                    Encoder.encode({ confirm: '' } as RemoteServiceResponse),
+                    { id: msg.id }
+                ), RPC_OFFLINE_TIME)
 
                 let response: RemoteServiceResponse
 
@@ -211,6 +206,7 @@ export class TypescriptMicroservice {
                     if (msg.reply_to && msg.id) response = { success: false, message: e }
                 }
 
+                clearInterval(prevent_timeout)
                 response && await this.transporter.publish(msg.reply_to, Encoder.encode(response), { id: msg.id })
 
             }, { limit, routing, fanout: fanout ?? false })
