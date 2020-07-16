@@ -1,8 +1,9 @@
-export type RemoteServiceResponse = { confirm?: string, success: boolean, data?: any, message?: string }
+export type RemoteServiceResponse = { confirm?: string, success: boolean, data?: any, message?: string, ping?:any }
 
-export type RemoteServiceRouteRequestOptions = { route?: any }
-
-
+export type RemoteServiceRouteRequestOptions = {
+    route?: any,
+    on_ping?: <T>(data: T) => any
+}
 
 export type RemoteServiceRequestOptions = RemoteServiceRouteRequestOptions & {
     wait_result?: boolean

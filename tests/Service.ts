@@ -1,13 +1,12 @@
-import { RPCService, AllowFromRemote, SubcribeTopic, OnMicroserviceReady } from "../src";
+import { RPCService, AllowFromRemote, SubcribeTopic, OnMicroserviceReady, RPCInfomation } from "../src";
 import { TypescriptMicroservice } from "../src/TypescriptMicroservice";
 import { GooglePubSubTransporter } from "../src/transporters/GooglePubSubTransporter";
-import { get_request_time } from '../src/helpers/get_request_time'
+import { sleep } from "../src/helpers/sleep";
 
 
-const start = Date.now()
 
 @RPCService()
-export class Service {
+export class Service extends RPCInfomation {
 
 
     @AllowFromRemote()
@@ -15,11 +14,16 @@ export class Service {
 
     @AllowFromRemote({ limit: 1, routing: () => `attributes.r = "1"`, fanout: false })
     async sum(a: number, b: number) {
-        if (get_request_time(this) < start) return console.log('Old request')
-        console.log('Request time : ' + (this as any).request_time)
-        console.log(`Caculate ${a} + ${b}`)
-        await new Promise(s => setTimeout(s, 5000))
-        throw 'SOME error here'
+        if (!this.microservice_ready || this.is_old_request()) return
+        
+        for (let i = 1; i <= 10; i++) {
+            await sleep(1000)
+            try {
+                await this.pingback({ progress: i })
+            } catch (e) {
+                console.log(e)
+            }
+        }
         return a + b
     }
 

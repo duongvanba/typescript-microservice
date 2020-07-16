@@ -9,6 +9,7 @@ import { get_name } from "./helpers/get_name";
 import { RemoteServiceResponse, RPCRequestOptions, RemoteServiceRequestOptions, RemoteServiceRouteRequestOptions, RemoteRPCService } from "./types";
 import { PingInterval } from "./helpers/ping_intervel";
 import { sleep } from './helpers/sleep'
+import { RPCInfomation } from "./RPCInfomation";
 
 
 const ResponseCallbackList = new Map<string, {
@@ -16,13 +17,15 @@ const ResponseCallbackList = new Map<string, {
     success: Function,
     requested_time: number,
     timeout?: number
-    last_ping?: number
+    last_ping?: number,
+    on_ping?: Function
 }>()
 
 
 export class TypescriptMicroservice {
 
     private static framework: TypescriptMicroservice
+    private started_time = -1
 
     private static readonly service_session_id = v4()
     private static readonly rpc_topic = 'typescript-microservice-rpc-topic-' + TypescriptMicroservice.service_session_id
@@ -68,11 +71,16 @@ export class TypescriptMicroservice {
         // Listen response 
         await transporter.createTopic(TypescriptMicroservice.rpc_topic)
         await transporter.listen(TypescriptMicroservice.rpc_topic, async (msg) => {
+
             const response = Encoder.decode<RemoteServiceResponse>(msg.content)
             if (ResponseCallbackList.has(msg.id)) {
-                if (response.confirm) return ResponseCallbackList.get(msg.id).last_ping = Date.now()
+                const { on_ping } = ResponseCallbackList.get(msg.id)
+                if (response.confirm != undefined) return ResponseCallbackList.get(msg.id).last_ping = Date.now()
+                if (response.ping != undefined) return on_ping && on_ping(response.ping)
                 const { success, reject } = ResponseCallbackList.get(msg.id)
-                response.success ? success(response.data) : reject(response.message)
+                response.success != undefined && (
+                    response.success ? success(response.data) : reject(response.message)
+                )
             }
         }, { fanout: false })
 
@@ -116,20 +124,28 @@ export class TypescriptMicroservice {
 
         return await new Promise(async (success, reject) => {
 
-            config.wait_result && ResponseCallbackList.set(id, {
+            if (config.wait_result == false) {
+                await this.transporter.publish(get_name(topic), Encoder.encode(args), {
+                    id,
+                    routing: config.route
+                })
+                success()
+                return
+            }
+
+            ResponseCallbackList.set(id, {
                 success,
                 reject,
                 timeout: config.timeout,
-                requested_time: Date.now()
+                requested_time: Date.now(),
+                on_ping: config.on_ping
             })
 
             await this.transporter.publish(get_name(topic), Encoder.encode(args), {
                 id,
-                reply_to: TypescriptMicroservice.rpc_topic,
-                routing: config.route
-            })
-
-            !config.wait_result && success()
+                routing: config.route,
+                reply_to: TypescriptMicroservice.rpc_topic
+            }) 
         })
     }
 
@@ -188,6 +204,17 @@ export class TypescriptMicroservice {
             await this.transporter.createTopic(topic)
             await this.transporter.listen(`${process.env.TS_MS_PREFIX ? process.env.TS_MS_PREFIX + '|' : ''}${topic}`, async msg => {
 
+                const args = Encoder.decode(msg.content)
+
+                if (!msg.reply_to) {
+                    if (!args) return
+                    await (target[method] as Function).apply(Object.assign(target, {
+                        request_time: msg.created_time,
+                        pingback: () => { }
+                    }), args)
+                    return
+                }
+
                 // Keep deadline
                 const prevent_timeout = setInterval(() => this.transporter.publish(
                     msg.reply_to,
@@ -198,16 +225,24 @@ export class TypescriptMicroservice {
                 let response: RemoteServiceResponse
 
                 try {
-                    const args = Encoder.decode(msg.content)
                     process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] Remote call ${service}.${method} args ${JSON.stringify(args)} `)
-                    const data = args ? await (target[method] as Function).apply(Object.assign(target, { request_time: msg.created_time }), args) : target[method]
+                    const data = args ? await (target[method] as Function).apply(Object.assign(target, {
+                        requested_time: msg.created_time,
+                        pingback: data => this.transporter.publish(
+                            msg.reply_to,
+                            Encoder.encode({ ping: data } as RemoteServiceResponse),
+                            { id: msg.id }
+                        ),
+                        started_time: this.started_time,
+                        is_old_request: () => msg.created_time < this.started_time,
+                        microservice_ready: () => this.started_time > 0
+                    } as RPCInfomation), args) : target[method]
                     if (msg.reply_to && msg.id) response = { success: true, data }
                 } catch (e) {
                     if (msg.reply_to && msg.id) response = { success: false, message: e }
                 }
-
                 clearInterval(prevent_timeout)
-                response && await this.transporter.publish(msg.reply_to, Encoder.encode(response), { id: msg.id })
+                await this.transporter.publish(msg.reply_to, Encoder.encode(response), { id: msg.id })
 
             }, { limit, routing, fanout: fanout ?? false })
         }
