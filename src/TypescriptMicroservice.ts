@@ -21,6 +21,8 @@ const ResponseCallbackList = new Map<string, {
     on_ping?: Function
 }>()
 
+const ServiceClasses = new Set<any>()
+
 
 export class TypescriptMicroservice {
 
@@ -38,7 +40,7 @@ export class TypescriptMicroservice {
         process.on('SIGUSR2', () => this.cleanup('SIGUSR2'));
     }
 
-    // Cleanup
+    // CleanupServiceClasses
     private cleaning = false
     private tmp_subscrioptions = new Set<string>([TypescriptMicroservice.rpc_topic])
     private async cleanup(event: string) {
@@ -56,8 +58,7 @@ export class TypescriptMicroservice {
         return (C: any) => class extends C {
             constructor(...props) {
                 super(...props)
-                if (!TypescriptMicroservice.framework) throw 'TYPESCRIPT_MICROSERVICE_FRAMWORK start incorrect'
-                TypescriptMicroservice.framework.active(this)
+                TypescriptMicroservice.framework ? TypescriptMicroservice.framework.active(this) : ServiceClasses.add(this)
             }
         }
     }
@@ -86,6 +87,9 @@ export class TypescriptMicroservice {
 
         // Monitor heatbeat
         this.rpc_monitor()
+
+        // Active services
+        for (const service of ServiceClasses) tsms.active(service)
 
         // Heartbeat
         return tsms
