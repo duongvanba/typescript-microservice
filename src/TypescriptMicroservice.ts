@@ -55,11 +55,13 @@ export class TypescriptMicroservice {
     }
 
     static wrapper() {
-        return (C: any) => class extends C {
-            constructor(...props) {
-                super(...props)
-                TypescriptMicroservice.framework ? TypescriptMicroservice.framework.active(this) : ServiceClasses.add(this)
-            }
+        return function(C){
+            return class extends C {
+                constructor(...props) {
+                    super(...props)
+                    TypescriptMicroservice.framework ? TypescriptMicroservice.framework.active(this) : ServiceClasses.add(this)
+                }
+            } as any
         }
     }
 
