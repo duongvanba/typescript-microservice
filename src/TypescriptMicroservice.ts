@@ -145,7 +145,7 @@ export class TypescriptMicroservice {
                 id,
                 routing: config.route,
                 reply_to: TypescriptMicroservice.rpc_topic
-            }) 
+            })
         })
     }
 
@@ -244,7 +244,7 @@ export class TypescriptMicroservice {
                 clearInterval(prevent_timeout)
                 await this.transporter.publish(msg.reply_to, Encoder.encode(response), { id: msg.id })
 
-            }, { limit, routing, fanout: fanout ?? false })
+            }, { limit, routing: typeof routing == "function" ? await routing() : routing, fanout: fanout ?? false })
         }
     }
 
