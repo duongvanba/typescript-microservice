@@ -37,7 +37,7 @@ export class TypescriptMicroservice {
     private static readonly service_session_id = v4()
     private static readonly rpc_topic = 'typescript-microservice-rpc-topic-' + TypescriptMicroservice.service_session_id
 
-    constructor(){
+    constructor() {
         this.active(this)
     }
 
@@ -110,13 +110,13 @@ export class TypescriptMicroservice {
 
 
 
-    async publish(name: string, data: any, routing?: string) {
+    protected async publish(name: string, data: any, routing?: string) {
         await TypescriptMicroservice.transporter.publish(get_name(name), Encoder.encode(data), {
             ...routing ? { routing } : {}
         })
     }
 
-    async rpc(config: RPCRequestOptions) {
+    protected async rpc(config: RPCRequestOptions) {
         const { method, args, service } = config
         const id = v4()
         const topic = get_name(service, method)
@@ -148,7 +148,7 @@ export class TypescriptMicroservice {
         })
     }
 
-    async link_remote_service<T>(service: any, exclude_methods: string[] = []) {
+    protected async link_remote_service<T>(service: any, exclude_methods: string[] = []) {
 
         const service_name = typeof service == 'string' ? service : (service.name || Object.getPrototypeOf(service).constructor.name)
 
