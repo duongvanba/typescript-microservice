@@ -148,7 +148,7 @@ export class TypescriptMicroservice {
         })
     }
 
-    protected async link_remote_service<T>(service: any, exclude_methods: string[] = []) {
+    async link_remote_service<T>(service: any, exclude_methods: string[] = []) {
 
         const service_name = typeof service == 'string' ? service : (service.name || Object.getPrototypeOf(service).constructor.name)
 
