@@ -1,21 +1,18 @@
-import { RPCService, AllowFromRemote, SubcribeTopic, OnMicroserviceReady, RPCInfomation } from "../src";
-import { TypescriptMicroservice } from "../src/TypescriptMicroservice";
+import { AllowFromRemote, SubcribeTopic, OnMicroserviceReady, TypescriptMicroservice, AmqpTransporter } from "../src";
 import { GooglePubSubTransporter } from "../src/transporters/GooglePubSubTransporter";
 import { sleep } from "../src/helpers/sleep";
 
+ 
 
-
-@RPCService()
-export class Service extends RPCInfomation {
+export class Service extends TypescriptMicroservice  {
 
 
     @AllowFromRemote()
     public a = 1
 
-    @AllowFromRemote({ limit: 1, routing: () => `attributes.r = "1"`, fanout: false })
+    @AllowFromRemote({ limit: 1, fanout: false })
     async sum(a: number, b: number) {
-        if (!this.microservice_ready || this.is_old_request()) return
-        
+        console.log('New request')
         for (let i = 1; i <= 10; i++) {
             await sleep(1000)
             try {
@@ -44,8 +41,8 @@ export class Service extends RPCInfomation {
 
 if (process.argv[1] == __filename) {
     setImmediate(async () => {
-        console.log('Init connector')
-        await TypescriptMicroservice.init(new GooglePubSubTransporter())
+        console.log('Init connector') 
+        await TypescriptMicroservice.init(await AmqpTransporter.init())
         console.log("Active RPC service")
         new Service()
     })

@@ -56,7 +56,7 @@ export class AmqpTransporter implements Transporter {
     async listen(topic: string, cb: CallBackFunction, options: ListenOptions = {}) {
         const channel = await this.getChannel(options)
         const { queue } = await channel.assertQueue(options.fanout ? '' : `${topic}${options.routing || ''}`, {
-            autoDelete: true 
+            autoDelete: true
         })
         process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] Listen topic [${topic}] => bind to queue [${queue}]`, JSON.stringify(options, null, 2))
         await channel.bindQueue(queue, topic, options.routing || '#')
@@ -67,7 +67,7 @@ export class AmqpTransporter implements Transporter {
                 created_time: timestamp,
                 id: messageId,
                 reply_to: replyTo,
-                delivery_attempt: msg.properties.headers["x-death"].length
+                delivery_attempt: msg.properties.headers["x-death"]?.length || 0
             }
             await cb(data)
             channel.ack(msg)

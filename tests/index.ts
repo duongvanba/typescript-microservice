@@ -5,7 +5,7 @@ import { GooglePubSubTransporter } from "../src/transporters/GooglePubSubTranspo
 
 setImmediate(async () => {
     console.log('Init connector')
-    const ms = await TypescriptMicroservice.init(new GooglePubSubTransporter())
+    const ms = await TypescriptMicroservice.init(await AmqpTransporter.init())
 
 
     console.log('Connect remote service')
@@ -13,7 +13,6 @@ setImmediate(async () => {
 
     console.log(`Caculating 4 + 5 = ?`)
     const result = await service.set({
-        route: { r: `1` },
         on_ping: data => console.log(data)
     }).sum(4, 5)
     console.log(`Result = ${result}`)

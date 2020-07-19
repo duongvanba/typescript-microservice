@@ -37,6 +37,10 @@ export class TypescriptMicroservice {
     private static readonly service_session_id = v4()
     private static readonly rpc_topic = 'typescript-microservice-rpc-topic-' + TypescriptMicroservice.service_session_id
 
+    constructor(){
+        this.active(this)
+    }
+
     // constructor(private transporter: Transporter) {
     //     process.on('exit', () => this.cleanup('exit'));
     //     process.on('SIGINT', () => this.cleanup('SIGINT'));
@@ -257,12 +261,15 @@ export class TypescriptMicroservice {
     }
 
     static extend(target: any) {
-        if (!TypescriptMicroservice.tsms) throw 'TYPESCRIPT_MICROSERVICE did not inited'
-        return new class extends target {
+        return class extends target {
             constructor(...args) {
                 super(...args)
+                if (!TypescriptMicroservice.tsms) {
+                    console.error('TYPESCRIPT_MICROSERVICE did not inited')
+                    throw new Error('TYPESCRIPT_MICROSERVICE did not inited')
+                }
                 TypescriptMicroservice.tsms.active(this)
             }
-        }
+        } as any
     }
 } 
