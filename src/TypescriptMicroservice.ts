@@ -20,8 +20,6 @@ const ResponseCallbackList = new Map<string, {
     on_ping?: Function
 }>()
 
-const ServiceClasses = new Set<any>()
-
 
 export class TypescriptMicroservice {
 
@@ -41,28 +39,16 @@ export class TypescriptMicroservice {
         this.active(this)
     }
 
-    // constructor(private transporter: Transporter) {
-    //     process.on('exit', () => this.cleanup('exit'));
-    //     process.on('SIGINT', () => this.cleanup('SIGINT'));
-    //     process.on('SIGUSR1', () => this.cleanup('SIGUSR1'));
-    //     process.on('SIGUSR2', () => this.cleanup('SIGUSR2'));
-    // }
-
-    // // CleanupServiceClasses
-    // private cleaning = false
-    // private tmp_subscrioptions = new Set<string>([TypescriptMicroservice.rpc_topic])
-    // private async cleanup(event: string) {
-    //     if (this.cleaning) return
-    //     process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] App exit due to[${event}]event, cleaning tmp topics and subscriptions ...`)
-    //     this.cleaning = true
-
-    //     for (const subscription of this.tmp_subscrioptions) await TypescriptMicroservice.transporter.deleteSubscription(subscription)
-    //     await TypescriptMicroservice.transporter.deleteTopic(TypescriptMicroservice.rpc_topic)
-    //     process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] Done`)
-    //     process.exit()
-    // } 
 
     static async init(transporter: Transporter) {
+
+        // Cleanup 
+        process.on('exit', () => this.cleanup('exit'));
+        process.on('SIGINT', () => this.cleanup('SIGINT'));
+        process.on('SIGUSR1', () => this.cleanup('SIGUSR1'));
+        process.on('SIGUSR2', () => this.cleanup('SIGUSR2'));
+
+
 
         if (TypescriptMicroservice.transporter) throw 'TYPESCRIPT_MICROSERVICE_FRAMWORK duplicate init'
         TypescriptMicroservice.transporter = transporter
@@ -88,6 +74,26 @@ export class TypescriptMicroservice {
         this.tsms = new this()
         return this.tsms
 
+    }
+
+    private static cleaning = false
+    private static tmp_subscrioptions = new Set<string>([TypescriptMicroservice.rpc_topic])
+
+    private static async cleanup(event: string) {
+        if (this.cleaning) return
+        this.cleaning = true
+        process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] App exit due to[${event}]event, cleaning tmp topics and subscriptions ...`)
+
+        for (const subscription of this.tmp_subscrioptions) {
+            try {
+                await TypescriptMicroservice.transporter.deleteSubscription(subscription)
+            } catch (e) { }
+        }
+        try {
+            await TypescriptMicroservice.transporter.deleteTopic(TypescriptMicroservice.rpc_topic)
+        } catch (e) { }
+        process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] Done`)
+        process.exit()
     }
 
     private static async rpc_monitor() {
@@ -256,7 +262,7 @@ export class TypescriptMicroservice {
                 } catch (e) {
                 }
             }, { limit, fanout: fanout ?? true })
-            // fanout && this.tmp_subscrioptions.add(subscription_name)
+            fanout && TypescriptMicroservice.tmp_subscrioptions.add(subscription_name)
         }
     }
 
