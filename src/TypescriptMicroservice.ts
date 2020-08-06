@@ -59,13 +59,13 @@ export class TypescriptMicroservice {
 
             const response = Encoder.decode<RemoteServiceResponse>(msg.content)
             if (ResponseCallbackList.has(msg.id)) {
-                const { on_ping } = ResponseCallbackList.get(msg.id)
+                const { on_ping, success, reject } = ResponseCallbackList.get(msg.id)
                 if (response.confirm != undefined) return ResponseCallbackList.get(msg.id).last_ping = Date.now()
                 if (response.ping != undefined) return on_ping && on_ping(response.ping)
-                const { success, reject } = ResponseCallbackList.get(msg.id)
                 response.success != undefined && (
                     response.success ? success(response.data) : reject(response.message)
                 )
+                ResponseCallbackList.delete(msg.id)
             }
         }, { fanout: false })
 
