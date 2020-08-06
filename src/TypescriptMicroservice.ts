@@ -100,12 +100,12 @@ export class TypescriptMicroservice {
         while (true) {
 
             for (const [id, { reject, timeout, requested_time, last_ping }] of ResponseCallbackList) {
-                if (!last_ping && Date.now() - requested_time > RPC_OFFLINE_TIME + 3000) {
+                if (Date.now() - (last_ping || requested_time) > RPC_OFFLINE_TIME + 3000) {
                     reject('RPC_OFFLINE')
                     ResponseCallbackList.delete(id)
                 }
 
-                if (Date.now() - requested_time > timeout) {
+                if (timeout && Date.now() - requested_time > timeout) {
                     reject('RPC_TIMEOUT')
                     ResponseCallbackList.delete(id)
                 }

@@ -73,10 +73,9 @@ export class GooglePubSubTransporter implements Transporter {
             const interval_extend_job = setInterval(() => message.modAck(600), 250000)
             try {
                 await cb(msg)
-                await message.ack()
             } catch (e) {
-
             }
+            await message.ack()
             clearInterval(interval_extend_job)
         };
 
