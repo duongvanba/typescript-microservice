@@ -29,6 +29,15 @@ export class GooglePubSubTransporter implements Transporter {
         try {
             await this.client.topic(topic).publish(data, opts)
         } catch (e) {
+            if (e.message.includes('5 NOT_FOUND')) {
+                try {
+                    await this.createTopic(topic)
+                    await this.client.topic(topic).publish(data, opts)
+                } catch (e) {
+                    console.log(e)
+                }
+                return
+            }
             console.log(e.message)
         }
     }
@@ -79,7 +88,7 @@ export class GooglePubSubTransporter implements Transporter {
             clearInterval(interval_extend_job)
         };
 
-        subscription.on('message', messageHandler)  
+        subscription.on('message', messageHandler)
         return subscription_name
     }
 
