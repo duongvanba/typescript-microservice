@@ -130,7 +130,7 @@ export class TypescriptMicroservice {
         return await new Promise(async (success, reject) => {
 
             if (config.wait_result == false) {
-                await TypescriptMicroservice.transporter.publish(get_name(topic), Encoder.encode(args), {
+                await TypescriptMicroservice.transporter.publish(topic, Encoder.encode(args), {
                     id,
                     routing: config.route
                 })
@@ -146,7 +146,7 @@ export class TypescriptMicroservice {
                 on_ping: config.on_ping
             })
 
-            await TypescriptMicroservice.transporter.publish(get_name(topic), Encoder.encode(args), {
+            await TypescriptMicroservice.transporter.publish(topic, Encoder.encode(args), {
                 id,
                 routing: config.route,
                 reply_to: TypescriptMicroservice.rpc_topic
@@ -205,7 +205,7 @@ export class TypescriptMicroservice {
             process.env.TSMS_DEBUG && console.log(`[TSMS_DEBUG] Active local service[${service}.${method}]`, JSON.stringify({ limit, routing }, null, 2))
             const topic = get_name(service, method)
             await TypescriptMicroservice.transporter.createTopic(topic)
-            await TypescriptMicroservice.transporter.listen(`${process.env.TS_MS_PREFIX ? process.env.TS_MS_PREFIX + '|' : ''}${topic}`, async msg => {
+            await TypescriptMicroservice.transporter.listen(topic, async msg => {
 
                 const args = Encoder.decode(msg.content)
 
