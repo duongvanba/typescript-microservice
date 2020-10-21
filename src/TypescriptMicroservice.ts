@@ -37,11 +37,7 @@ export class TypescriptMicroservice {
     private static readonly rpc_topic = 'typescript-microservice-rpc-topic-' + TypescriptMicroservice.service_session_id
 
     constructor() {
-        if (!TypescriptMicroservice.tsms) {
-            console.error('TYPESCRIPT_MICROSERVICE did not init')
-            throw new Error('TYPESCRIPT_MICROSERVICE did not init')
-        }
-        this.active(this)
+        Object.getPrototypeOf(this).constructor == TypescriptMicroservice && this.active(this)
     }
 
 
@@ -195,7 +191,10 @@ export class TypescriptMicroservice {
     }
 
     private async active(target: any) {
-
+        if (!TypescriptMicroservice.tsms) {
+            console.error('TYPESCRIPT_MICROSERVICE did not init')
+            throw new Error('TYPESCRIPT_MICROSERVICE did not init')
+        }
         await this.active_local_service(target)
         await this.active_topic_subscriber(target)
         const on_ready_hooks = Reflect.getMetadata(ON_MICROSERVICE_READY, target) || []
@@ -276,10 +275,6 @@ export class TypescriptMicroservice {
         return class extends target {
             constructor(...args) {
                 super(...args)
-                if (!TypescriptMicroservice.tsms) {
-                    console.error('TYPESCRIPT_MICROSERVICE did not init')
-                    throw new Error('TYPESCRIPT_MICROSERVICE did not init')
-                }
                 TypescriptMicroservice.tsms.active(this)
             }
         } as any
