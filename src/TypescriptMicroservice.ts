@@ -25,7 +25,7 @@ const ResponseCallbackList = new Map<string, {
 export class TypescriptMicroservice {
 
     private static transporter: Transporter
-    private static tsms: TypescriptMicroservice
+    static tsms: TypescriptMicroservice
 
     is_old_request: () => boolean
     request_created_time: number
