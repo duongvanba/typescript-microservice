@@ -11,10 +11,14 @@ setImmediate(async () => {
     console.log('Connect remote service')
     const service = await ms.link_remote_service<Service>(Service)
 
-    console.log(`Caculating 4 + 5 = ?`)
-    const result = await service.set({
-        on_ping: data => console.log(data)
-    }).sum(4, 5)
-    console.log(`Result = ${result}`)
+
+    await Promise.all(new Array(100).fill(0).map(async (_, index) => {
+        try {
+            const rs = await service.sum(index, 0)
+            console.log({ rs })
+        } catch (e) {
+            console.log(e)
+        }
+    }))
 
 })
