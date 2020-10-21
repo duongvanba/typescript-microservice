@@ -37,7 +37,7 @@ export class TypescriptMicroservice {
     private static readonly rpc_topic = 'typescript-microservice-rpc-topic-' + TypescriptMicroservice.service_session_id
 
     constructor() {
-        Object.getPrototypeOf(this).constructor == TypescriptMicroservice && this.active(this)
+        Object.getPrototypeOf(this).constructor != TypescriptMicroservice && this.active(this)
     }
 
 
