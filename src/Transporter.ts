@@ -1,21 +1,22 @@
 export type PublishOptions = {
     id?: string
     reply_to?: string,
-    routing?: string
+    route?: string
+    timeout?: number
+    connection?: string
+}
+
+export type ListenOptions = {
+    fanout?: boolean,
+    limit?: number,
+    route?: any
+    connection?: string
 }
 
 
 export type Message = { id?: string, reply_to?: string, content: Buffer, created_time: number, delivery_attempt: number }
 
 export type CallBackFunction = (data: Message) => any
-
-export type ListenOptions = {
-    fanout?: boolean,
-    limit?: number,
-    routing?: any
-}
-
-
 
 export interface Transporter {
     createTopic(name: string): Promise<void>
