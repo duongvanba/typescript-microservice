@@ -5,7 +5,6 @@ import { Encoder } from "./Encoder";
 import { OMIT_EVENTS, RPC_OFFLINE_TIME } from "./const";
 import { get_name } from "./helpers/get_name";
 import { RPCRequestOptions, RemoteServiceRequestOptions, RemoteRPCService, RemoteServiceResponse } from "./types";
-import { sleep } from "./helpers/sleep";
 
 
 const ResponseCallbackList = new Map<string, {
@@ -88,11 +87,7 @@ export class TypescriptMicroservice {
 
                 if (method == 'set') return (options: RemoteServiceRequestOptions = {}) => new Proxy({}, {
                     get: (_, method) => (...args: any[]) => typeof method == 'string' && this.rpc({ args, method, service: service_name, wait_result: true, ...options })
-                })
-
-                if (method == 'fetch') return (options: RemoteServiceRequestOptions = {}) => new Proxy({}, {
-                    get: (_, method) => typeof method == 'string' && this.rpc({ args: null, method, service: service_name, ...options, wait_result: true, })
-                })
+                }) 
 
                 return (...args: any[]) => typeof method == 'string' && this.rpc({ args, method, service: service_name, wait_result: true })
             }

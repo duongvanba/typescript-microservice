@@ -11,6 +11,7 @@ export type ListenOptions = {
     limit?: number,
     route?: any
     connection?: string
+    concurrency?: number
 }
 
 
