@@ -1,16 +1,20 @@
-import { sleep } from "../src/helpers/sleep";
-import { AllowFromRemote, Microservice, SubcribeTopic, TypescriptMicroservice } from '../src'
+import { AllowFromRemote, Microservice, sleep, SubcribeTopic, TypescriptMicroservice } from '../src'
 import { AmqpTransporter } from "../bin/AmqpTransporter";
 
 @Microservice()
-export class Service { 
+export class Service {
 
-    @AllowFromRemote({ fanout: false })
-    async sum(a: number, b: number) { 
-        await sleep(60000)
+    @AllowFromRemote( )
+    async sum(a: number, b: number, fn: Function = (n: number) => { }) {
+        console.log('New request', { a, b })
+        await sleep(5000)
         return a + b
     }
-
+    
+    @AllowFromRemote( )
+    check_online(){
+        return true 
+    }
 
     @SubcribeTopic('ahihi')
     async listen(msg) {

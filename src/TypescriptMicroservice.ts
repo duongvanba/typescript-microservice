@@ -2,9 +2,10 @@
 import { Transporter } from "./Transporter";
 import { v4 } from 'uuid'
 import { Encoder } from "./Encoder";
-import { OMIT_EVENTS, RPC_OFFLINE_TIME } from "./const";
+import { MAIN_SERVICE_CLASS, OMIT_EVENTS, RPC_OFFLINE_TIME } from "./const";
 import { get_name } from "./helpers/get_name";
 import { RPCRequestOptions, RemoteServiceRequestOptions, RemoteRPCService, RemoteServiceResponse } from "./types";
+import { sleep } from "./helpers/sleep";
 
 
 const ResponseCallbackList = new Map<string, {
@@ -25,27 +26,32 @@ export class TypescriptMicroservice {
     static readonly transporters = new Map<string, Transporter>()
     static readonly started_time = Number.MIN_SAFE_INTEGER
 
+    static async publish<T>(topic: string, data: T, connection: string = 'default') {
+        this.transporters.get(connection)?.publish(
+            topic,
+            Buffer.from(JSON.stringify(data)),
+            { connection })
+    }
+
     static async rpc({
         args,
         method,
         service,
         connection = 'default',
         route,
-        timeout = 1000,
+        timeout = RPC_OFFLINE_TIME,
         wait_result
     }: RPCRequestOptions) {
+
         const id = v4()
         const topic = get_name(service, method)
         const transporter = TypescriptMicroservice.transporters.get(connection)
         if (!transporter) throw `Typescript microservice error, can not find connection "${connection}"`
 
         return await new Promise<void>(async (success, reject) => {
-
+            const data = Encoder.encode(args)
             if (wait_result == false) {
-                await transporter.publish(topic, Encoder.encode(args), {
-                    id,
-                    route
-                })
+                await transporter.publish(topic, data, { id, route })
                 success()
                 return
             }
@@ -55,30 +61,40 @@ export class TypescriptMicroservice {
                 reject,
                 timeout,
                 request_time: Date.now(),
-                args: args.map(a => typeof a == 'function' ? a : null)
+                args
             })
 
-            await transporter.publish(topic, Encoder.encode(args), {
+            await transporter.publish(topic, data, {
                 id,
                 route,
                 reply_to: TypescriptMicroservice.rpc_topic
             })
 
             // Monitor request
-            const tid = setInterval(() => {
-                if (!ResponseCallbackList.has(id)) return clearInterval(tid)
-                const { request_time, last_ping } = ResponseCallbackList.get(id)
-                if ((Date.now() - (last_ping || request_time)) > timeout) {
-                    console.log(`[RPC offline] [${topic}]`)
-                    return clearInterval(tid)
+            setImmediate(async () => {
+                await sleep(timeout + 1000)
+                while (ResponseCallbackList.has(id)) {
+                    const { request_time, last_ping } = ResponseCallbackList.get(id)
+                    if ((Date.now() - (last_ping || request_time)) > timeout) {
+                        reject(`[RPC offline] [${topic}]`)
+                        return
+                    }
+                    await sleep(timeout)
                 }
-            }, timeout)
+            })
         })
     }
 
-    static async link_remote_service<T>(service: any, exclude_methods: string[] = []) {
+    private static get_service_name(service: any) {
+        for (let target = service; target; target = Object.getPrototypeOf(target)) {
+            if (target.prototype[MAIN_SERVICE_CLASS] == target) return target.name
+        }
+    }
 
-        const service_name = typeof service == 'string' ? service : (service.name || Object.getPrototypeOf(service).constructor.name)
+    static async link_remote_service<T>(service: { new(...args: any[]): T }, exclude_methods: string[] = []) {
+
+        const service_name = this.get_service_name(service)
+        if (!service_name) throw 'SERVICE_NOT_FOUND'
 
         return new Proxy({}, {
             get: (_, method) => {
@@ -87,7 +103,7 @@ export class TypescriptMicroservice {
 
                 if (method == 'set') return (options: RemoteServiceRequestOptions = {}) => new Proxy({}, {
                     get: (_, method) => (...args: any[]) => typeof method == 'string' && this.rpc({ args, method, service: service_name, wait_result: true, ...options })
-                }) 
+                })
 
                 return (...args: any[]) => typeof method == 'string' && this.rpc({ args, method, service: service_name, wait_result: true })
             }
@@ -95,13 +111,12 @@ export class TypescriptMicroservice {
     }
 
     static async init(transporters: { [name: string]: Transporter }) {
-        if (transporters.default) throw 'Typescript microservice error, missing default transporter'
+
+        if (!transporters.default) throw 'Typescript microservice error, missing default transporter'
 
         for (const name in transporters) {
             const transporter = transporters[name]
             this.transporters.set(name, transporter)
-
-            await transporter.createTopic(TypescriptMicroservice.rpc_topic)
 
             transporter.listen(TypescriptMicroservice.rpc_topic, async (msg) => {
 
@@ -113,7 +128,10 @@ export class TypescriptMicroservice {
                 } = Encoder.decode<RemoteServiceResponse>(msg.content)
 
 
-                if (!ResponseCallbackList.has(msg.id)) return
+                if (!ResponseCallbackList.has(msg.id)) {
+                    console.log('No id')
+                    return
+                }
 
                 const { args, reject, success } = ResponseCallbackList.get(msg.id)
 
@@ -126,7 +144,10 @@ export class TypescriptMicroservice {
                 }
 
                 // In progressing
-                if (type == 'callback') args[callback.index](...callback.args)
+                if (type == 'callback') {
+                    args[callback.index](...callback.args)
+                }
+
                 ResponseCallbackList.get(msg.id).last_ping = Date.now()
 
             }, { fanout: false })

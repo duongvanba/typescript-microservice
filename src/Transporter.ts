@@ -15,14 +15,18 @@ export type ListenOptions = {
 }
 
 
-export type Message = { id?: string, reply_to?: string, content: Buffer, created_time: number, delivery_attempt: number }
+export type Message = {
+    id?: string,
+    reply_to?: string,
+    content: Buffer,
+    created_time: number,
+    delivery_attempt: number
+    
+}
 
 export type CallBackFunction = (data: Message) => any
 
-export interface Transporter {
-    createTopic(name: string): Promise<void>
-    deleteTopic(name: string): Promise<void>
-    deleteSubscription(name: string): Promise<void>
+export interface Transporter { 
     publish(topic: string, data: Buffer, options?: PublishOptions): Promise<any>
     listen(topic: string, cb: CallBackFunction, options: ListenOptions): Promise<string>
 }

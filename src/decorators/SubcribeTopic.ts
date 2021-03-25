@@ -22,8 +22,8 @@ const SubcribeTopicDecorator = D.createPropertyOrMethodDecorator<ListenOptions &
     const transporter = TypescriptMicroservice.transporters.get(connection)
     if (!transporter) throw `Typescript microservice error, can not find connection "${connection}"`
 
-    await transporter.createTopic(get_name(topic))
-    const queue = new Queue({ concurrency })
+
+    const queue = new Queue(concurrency ? { concurrency } : {})
 
     const subscription_name = await transporter.listen(get_name(topic), async msg => {
         try {

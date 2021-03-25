@@ -7,4 +7,6 @@ export const OMIT_EVENTS = [
     'onApplicationShutdown'
 ]
 
+export const MAIN_SERVICE_CLASS = Symbol.for('MAIN_SERVICE_CLASS')
+
 export const RPC_OFFLINE_TIME = 10000

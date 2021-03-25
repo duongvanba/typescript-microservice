@@ -1,26 +1,41 @@
 import { Service } from "./Service";
 import { AmqpTransporter } from "../bin/AmqpTransporter";
 import { TypescriptMicroservice } from "../src/TypescriptMicroservice";
+import { sleep } from "../src";
+
+
 
 setImmediate(async () => {
+
     console.log('Init connector')
     await TypescriptMicroservice.init({
         default: await AmqpTransporter.init()
     })
 
 
+
+
+
     console.log('Connect remote service')
-    const service = await TypescriptMicroservice.link_remote_service<Service>(Service)
+    const service = await TypescriptMicroservice.link_remote_service(Service)
+    console.log(`Sending request`)
 
-
-    await Promise.all(new Array(100).fill(0).map(async (_, index) => {
+    let online = false
+    while (true) {
         try {
-            const rs = await service.sum(index, 0)
-            console.log({ rs })
-        } catch (e) {
-            console.log(e)
+            await service.set({ timeout: 1000 }).check_online()
+            if (!online) {
+                online = true
+                console.log('Online')
+            }
+        } catch {
+            if (online) {
+                console.log('Offline')
+                online = false
+            }
         }
-    }))
+        await sleep(500)
+    }
 
 })
 

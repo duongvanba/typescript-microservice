@@ -1,6 +1,6 @@
 {
   "name": "typescript-microservice",
-  "version": "1.0.31",
+  "version": "1.0.32",
   "main": "dist/index.js",
   "license": "MIT",
   "repository": "https://github.com/duongvanba/typescript-microservice",
