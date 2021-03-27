@@ -20,6 +20,12 @@ setImmediate(async () => {
     const service = await TypescriptMicroservice.link_remote_service(Service)
     console.log(`Sending request`)
 
+
+
+    TypescriptMicroservice.publish('ahihi', {a:'hihi'})
+
+    return 
+
     let online = false
     while (true) {
         try {
