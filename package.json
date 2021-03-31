@@ -1,6 +1,6 @@
 {
   "name": "typescript-microservice",
-  "version": "1.0.34",
+  "version": "1.0.35",
   "main": "dist/index.js",
   "license": "MIT",
   "repository": "https://github.com/duongvanba/typescript-microservice",
@@ -8,7 +8,7 @@
     "p-queue": "^6.6.2",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^6.5.4",
-    "typescript-decorator-builder": "^1.0.3",
+    "typescript-decorator-builder": "1.0.6",
     "uuid": "^7.0.2"
   },
   "peerDependencies": {
