@@ -1,5 +1,5 @@
 import { TypescriptMicroservice } from "..";
-import { RPC_OFFLINE_TIME, MAIN_SERVICE_CLASS } from "../const";
+import { RPC_OFFLINE_TIME, MAIN_SERVICE_CLASS, RPC_HEARTBEAT_TIME } from "../const";
 import { Encoder } from "../Encoder";
 import { get_name } from "../helpers/get_name";
 import { ListenOptions } from "../Transporter";
@@ -54,7 +54,7 @@ export const [_, listServiceActions] = D.createPropertyOrMethodDecorator<ListenO
         // Keep deadline
         const prevent_timeout = wait_response && setInterval(
             () => publish({ type: 'ping' }),
-            RPC_OFFLINE_TIME
+            RPC_HEARTBEAT_TIME
         )
 
 
