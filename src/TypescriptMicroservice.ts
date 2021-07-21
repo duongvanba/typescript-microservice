@@ -128,10 +128,7 @@ export class TypescriptMicroservice {
                 } = Encoder.decode<RemoteServiceResponse>(msg.content)
 
 
-                if (!ResponseCallbackList.has(msg.id)) {
-                    console.log('No id')
-                    return
-                }
+                if (!ResponseCallbackList.has(msg.id)) return
 
                 const { args, reject, success } = ResponseCallbackList.get(msg.id)
 
