@@ -9,4 +9,5 @@ export { sleep } from './helpers/sleep'
 export { AllowFromRemote, RequestContext } from './decorators/AllowFromRemote'
 export { SubcribeTopic, EventContext } from './decorators/SubcribeTopic'
 export { Microservice } from './decorators/decorator'
+export * from './errors'
 

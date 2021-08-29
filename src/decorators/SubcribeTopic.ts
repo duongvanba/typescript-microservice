@@ -4,6 +4,7 @@ import { ListenOptions } from "../Transporter";
 import { TypescriptMicroservice } from "../TypescriptMicroservice";
 import { D } from "./decorator";
 import Queue from 'p-queue'
+import { TransporterNotFound } from "../errors";
 
 export type EventContext = {
     requested_time: number
@@ -20,7 +21,7 @@ const SubcribeTopicDecorator = D.createPropertyOrMethodDecorator<ListenOptions &
 }) => {
 
     const transporter = TypescriptMicroservice.transporters.get(connection)
-    if (!transporter) throw `Typescript microservice error, can not find connection "${connection}"`
+    if (!transporter) throw new TransporterNotFound(connection)
 
 
     const queue = new Queue(concurrency ? { concurrency } : {})

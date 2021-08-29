@@ -6,6 +6,7 @@ import { MAIN_SERVICE_CLASS, OMIT_EVENTS, RPC_OFFLINE_TIME } from "./const";
 import { get_name } from "./helpers/get_name";
 import { RPCRequestOptions, RemoteServiceRequestOptions, RemoteRPCService, RemoteServiceResponse } from "./types";
 import { sleep } from "./helpers/sleep";
+import { MissingDefaultTransporter, RemoteServiceNotFound, TransporterNotFound } from "./errors";
 
 
 const ResponseCallbackList = new Map<string, {
@@ -46,7 +47,7 @@ export class TypescriptMicroservice {
         const id = v4()
         const topic = get_name(service, method)
         const transporter = TypescriptMicroservice.transporters.get(connection)
-        if (!transporter) throw `Typescript microservice error, can not find connection "${connection}"`
+        if (!transporter) throw new TransporterNotFound(connection)
 
         return await new Promise<void>(async (success, reject) => {
             const data = Encoder.encode(args)
@@ -94,7 +95,7 @@ export class TypescriptMicroservice {
     static async link_remote_service<T>(service: { new(...args: any[]): T }, exclude_methods: string[] = []) {
 
         const service_name = this.get_service_name(service)
-        if (!service_name) throw 'SERVICE_NOT_FOUND'
+        if (!service_name) throw new RemoteServiceNotFound(service_name)
 
         return new Proxy({}, {
             get: (_, method) => {
@@ -112,7 +113,8 @@ export class TypescriptMicroservice {
 
     static async init(transporters: { [name: string]: Transporter }) {
 
-        if (!transporters.default) throw 'Typescript microservice error, missing default transporter'
+        if (!transporters.default) throw new MissingDefaultTransporter()
+
 
         for (const name in transporters) {
             const transporter = transporters[name]

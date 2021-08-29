@@ -6,6 +6,7 @@ import { ListenOptions } from "../Transporter";
 import { RemoteServiceResponse } from "../types";
 import { D } from "./decorator";
 import Queue from 'p-queue'
+import { TransporterNotFound } from "../errors";
 
 export type RequestContext = {
     requested_time: number
@@ -26,7 +27,8 @@ export const [_, listServiceActions] = D.createPropertyOrMethodDecorator<ListenO
     } = {}) => {
 
     const transporter = TypescriptMicroservice.transporters.get(connection)
-    if (!transporter) throw `Typescript microservice error, can not find connection "${connection}"`
+    if (!transporter) throw new TransporterNotFound(connection)
+
 
     const service = target[MAIN_SERVICE_CLASS].name
     const topic = get_name(service, method)
