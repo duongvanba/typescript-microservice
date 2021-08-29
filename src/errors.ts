@@ -18,3 +18,15 @@ export class TransporterNotFound extends TypescriptMicroserviceError {
     }
 }
 
+
+export class RemoteServiceOffline extends TypescriptMicroserviceError {
+    constructor(
+        public readonly service_id: string,
+        public readonly method: string,
+        public readonly request_time: number,
+        public readonly waited_duration: number,
+        public readonly args: any[],
+    ) {
+        super()
+    }
+}

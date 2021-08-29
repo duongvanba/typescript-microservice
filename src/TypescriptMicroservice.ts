@@ -6,7 +6,7 @@ import { MAIN_SERVICE_CLASS, OMIT_EVENTS, RPC_OFFLINE_TIME } from "./const";
 import { get_name } from "./helpers/get_name";
 import { RPCRequestOptions, RemoteServiceRequestOptions, RemoteRPCService, RemoteServiceResponse } from "./types";
 import { sleep } from "./helpers/sleep";
-import { MissingDefaultTransporter, RemoteServiceNotFound, TransporterNotFound } from "./errors";
+import { MissingDefaultTransporter, RemoteServiceNotFound, RemoteServiceOffline, TransporterNotFound } from "./errors";
 
 
 const ResponseCallbackList = new Map<string, {
@@ -75,9 +75,15 @@ export class TypescriptMicroservice {
             setImmediate(async () => {
                 await sleep(timeout + 1000)
                 while (ResponseCallbackList.has(id)) {
-                    const { request_time, last_ping } = ResponseCallbackList.get(id)
+                    const { request_time, last_ping, args } = ResponseCallbackList.get(id)
                     if ((Date.now() - (last_ping || request_time)) > timeout) {
-                        reject(`[RPC offline] [${topic}]`)
+                        reject(new RemoteServiceOffline(
+                            service,
+                            method,
+                            request_time,
+                            Date.now() - request_time,
+                            args
+                        ))
                         return
                     }
                     await sleep(timeout)
