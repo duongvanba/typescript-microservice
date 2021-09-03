@@ -1,5 +1,5 @@
 import { TypescriptMicroservice } from "..";
-import { RPC_OFFLINE_TIME, MAIN_SERVICE_CLASS, RPC_HEARTBEAT_TIME } from "../const";
+import { MAIN_SERVICE_CLASS, RPC_HEARTBEAT_TIME } from "../const";
 import { Encoder } from "../Encoder";
 import { get_name } from "../helpers/get_name";
 import { ListenOptions } from "../Transporter";
@@ -72,6 +72,7 @@ export const [_, listServiceActions] = D.createPropertyOrMethodDecorator<ListenO
             wait_response && await publish({ type: 'response', data })
         } catch (e) {
             wait_response && await publish({ type: 'error', message: e })
+            if (e instanceof Error) console.error(e)
         }
 
         // Send response back
