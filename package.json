@@ -7,14 +7,9 @@
   "dependencies": {  
     "p-queue": "^6.6.2",
     "reflect-metadata": "^0.1.13",
-    "rxjs": "^6.5.4",
-    "typescript-decorator-builder": "1.0.6",
+    "rxjs": "^6.5.4", 
     "uuid": "^7.0.2"
-  },
-  "peerDependencies": {
-    "reflect-metadata": "^0.1.13",
-    "rxjs": "^6.5.4"
-  },
+  }, 
   "devDependencies": {
     "@types/node": "^13.1.8",
     "@types/uuid": "^3.4.6"

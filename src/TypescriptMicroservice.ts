@@ -7,8 +7,8 @@ import { get_name } from "./helpers/get_name";
 import { RPCRequestOptions, RemoteServiceRequestOptions, RemoteRPCService, RemoteServiceResponse, SubcribeTopicOptions } from "./types";
 import { sleep } from "./helpers/sleep";
 import { RemoteServiceNotFound, RemoteServiceOffline, TransporterNotFound } from "./errors";
-import { $$ServiceName } from "./MetadataKeyList";
 import Queue from 'p-queue'
+import { listLocalRpcMethods } from "./decorators/AllowFromRemote";
 
 const ResponseCallbackList = new Map<string, {
     reject: Function,
@@ -99,12 +99,12 @@ export class TypescriptMicroservice {
 
     static async link_remote_service<T>(service: { new(...args: any[]): T }, exclude_methods: string[] = []) {
 
-        const service_name = Reflect.getMetadata($$ServiceName, service.prototype) as string
+        const methods = listLocalRpcMethods(service.prototype)
+        if (methods.length == 0) throw new RemoteServiceNotFound(service)
+        const service_name = methods[0].prototype.constructor.name
 
         return new Proxy({}, {
             get: (_, method) => {
-
-                if (!service_name) throw new RemoteServiceNotFound(service)
 
                 if (typeof method != 'string' || [...OMIT_EVENTS, ...exclude_methods].includes(method)) return null
 

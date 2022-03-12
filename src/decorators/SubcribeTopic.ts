@@ -1,16 +1,13 @@
 import { TypescriptMicroservice } from "../TypescriptMicroservice";
-import { $$ServiceName, $$SubcribeTopic } from "../MetadataKeyList";
 import { SubcribeTopicOptions } from "../types";
-import { D } from "./Microservice";
+import { DecoratorBuilder } from "../helpers/DecoratorBuilder";
 
-const [_] = D.createPropertyDecorator<SubcribeTopicOptions>(async function (list) {
-    for (const { method, options } of list) {
-        await TypescriptMicroservice.listen(
-            options,
-            this[method]
-        )
-    }
-})
-
-
-export const SubcribeTopic = (topic: string, options: Omit<SubcribeTopicOptions, 'topic'>) => _({ topic, ...options })
+export const [SubcribeTopic, listTopicListeners, activeTopicListeners] = DecoratorBuilder.createPropertyDecorator<SubcribeTopicOptions>(async function ({
+    method,
+    options
+}) {
+    await TypescriptMicroservice.listen(
+        options,
+        this[method]
+    )
+}) 
