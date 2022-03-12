@@ -6,8 +6,8 @@ export { TypescriptMicroservice } from './TypescriptMicroservice'
 export { sleep } from './helpers/sleep'
 
 // Decorators
-export { AllowFromRemote, RequestContext } from './decorators/AllowFromRemote'
-export { SubcribeTopic, EventContext } from './decorators/SubcribeTopic'
-export { Microservice } from './decorators/decorator'
+export { AllowFromRemote } from './decorators/AllowFromRemote'
+export { SubcribeTopic } from './decorators/SubcribeTopic'
+export { Microservice } from './decorators/Microservice'
 export * from './errors'
 

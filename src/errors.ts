@@ -2,7 +2,7 @@ export class TypescriptMicroserviceError extends Error { }
 
 export class RemoteServiceNotFound extends TypescriptMicroserviceError {
     constructor(
-        public readonly service_name: string
+        public readonly service: any
     ) {
         super()
     }

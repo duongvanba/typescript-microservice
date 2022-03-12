@@ -1,3 +1,6 @@
+export const $$AllowFromRemote = Symbol.for('AllowFromRemote')
+export const $$SubcribeTopic = Symbol.for('SubcribeTopic')
+export const $$ServiceName = Symbol.for('ServiceName')
 export const TOPIC_SUBSCRIBES = Symbol.for('TOPIC_SUBSCRIBES')
 export const ALLOW_FROM_REMOTE_METHODS = Symbol.for('ALLOW_FROM_REMOTE_METHODS')
 export const ON_MICROSERVICE_READY = Symbol.for('ON_MICROSERVICE_READY')

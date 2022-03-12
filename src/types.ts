@@ -1,3 +1,5 @@
+import { ListenOptions } from "./Transporter"
+
 export type RemoteServiceResponse = {
     type: 'response' | 'ping' | 'callback' | 'error'
     data?: any,
@@ -12,11 +14,20 @@ export type RemoteServiceRequestOptions = {
     wait_result?: boolean
 }
 
+export type AllowFromRemoteOptions = ListenOptions & {
+    connection?: string 
+}
+
+export type SubcribeTopicOptions = ListenOptions & {
+    topic: string
+    connection?: string
+}
+
 
 export type RPCRequestOptions = RemoteServiceRequestOptions & {
     service: string,
     method: string,
-    args: any 
+    args: any
 }
 
 export type RemoteRPCService<T> = T & { set: (config: RemoteServiceRequestOptions) => T, fetch: (config?: RemoteServiceRequestOptions) => T }

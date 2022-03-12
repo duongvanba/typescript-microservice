@@ -1,16 +1,18 @@
+import { Subscription } from 'rxjs'
+
+
 export type PublishOptions = {
     id?: string
     reply_to?: string,
     route?: string
     timeout?: number
-    connection?: string
+    connection?:string 
 }
 
 export type ListenOptions = {
     fanout?: boolean,
     limit?: number,
     route?: any
-    connection?: string
     concurrency?: number
 }
 
@@ -21,14 +23,14 @@ export type Message = {
     content: Buffer,
     created_time: number,
     delivery_attempt: number
-    
+
 }
 
 export type CallBackFunction = (data: Message) => any
 
-export interface Transporter { 
+export interface Transporter {
     publish(topic: string, data: Buffer, options?: PublishOptions): Promise<any>
-    listen(topic: string, cb: CallBackFunction, options: ListenOptions): Promise<string>
+    listen(topic: string, cb: CallBackFunction, options: ListenOptions): Subscription
 }
 
 
