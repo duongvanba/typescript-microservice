@@ -10,9 +10,8 @@ import { DecoratorBuilder } from "../helpers/DecoratorBuilder";
 export const [AllowFromRemote, listLocalRpcMethods, activeLocalServices] = DecoratorBuilder.createPropertyDecorator<AllowFromRemoteOptions>(async function ({
     prototype,
     method,
-    options: { concurrency, connection, fanout, limit, route } = {} as AllowFromRemoteOptions 
-}) { 
-    console.log({prototype, method})
+    options: { concurrency, connection, fanout, limit, route } = {} as AllowFromRemoteOptions
+}) {
     const service_id = prototype.constructor.name
     const topic = get_name(service_id, method)
     const queue = new Queue(concurrency ? { concurrency } : {})
@@ -45,7 +44,7 @@ export const [AllowFromRemote, listLocalRpcMethods, activeLocalServices] = Decor
 
         // Process request
         try {
-            const data = await queue.add(() => this[method](args))
+            const data = await queue.add(() => this[method](...args))
             wait_response && await publish({ type: 'response', data })
         } catch (e) {
             wait_response && await publish({ type: 'error', message: e })
