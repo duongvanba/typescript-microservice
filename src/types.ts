@@ -15,7 +15,7 @@ export type RemoteServiceRequestOptions = {
 }
 
 export type AllowFromRemoteOptions = ListenOptions & {
-    connection?: string 
+    connection?: string
 }
 
 export type SubcribeTopicOptions = ListenOptions & {
@@ -30,6 +30,9 @@ export type RPCRequestOptions = RemoteServiceRequestOptions & {
     args: any
 }
 
-export type RemoteRPCService<T> = T & { set: (config: RemoteServiceRequestOptions) => T, fetch: (config?: RemoteServiceRequestOptions) => T }
-
-
+export type RemoteRPCService<T> = T & {
+    wait_result(wait_result?: boolean): RemoteRPCService<T>,
+    route(route: string | string[]): RemoteRPCService<T>,
+    timeout(timeout: number): RemoteRPCService<T>
+    connection(connection: string): RemoteRPCService<T>
+} 

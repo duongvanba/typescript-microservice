@@ -1,14 +1,16 @@
 
-import { Transporter } from "./Transporter";
+import { Message, Transporter } from "./Transporter";
 import { v4 } from 'uuid'
 import { Encoder } from "./Encoder";
-import { OMIT_EVENTS, RPC_OFFLINE_TIME } from "./const";
-import { get_name } from "./helpers/get_name";
-import { RPCRequestOptions, RemoteServiceRequestOptions, RemoteRPCService, RemoteServiceResponse, SubcribeTopicOptions } from "./types";
+import { RPC_OFFLINE_TIME } from "./const";
+import { TopicUtils } from "./helpers/TopicUtils";
+import { RPCRequestOptions, RemoteRPCService, RemoteServiceResponse, SubcribeTopicOptions } from "./types";
 import { sleep } from "./helpers/sleep";
-import { RemoteServiceNotFound, RemoteServiceOffline, TransporterNotFound } from "./errors";
-import Queue from 'p-queue'
+import { MissingRemoteAction, RemoteServiceOffline, TransporterNotFound } from "./errors";
 import { listLocalRpcMethods } from "./decorators/AllowFromRemote";
+import { Subject } from "rxjs";
+import { finalize, mergeMap } from "rxjs/operators";
+import { DeepProxy } from './helpers/DeepProxy'
 
 const ResponseCallbackList = new Map<string, {
     reject: Function,
@@ -18,6 +20,8 @@ const ResponseCallbackList = new Map<string, {
     last_ping?: number,
     args: any[]
 }>()
+
+const OptionsKeysList = ['waitResult', 'routeTo', 'timeoutMs', 'useConnection']
 
 export class TypescriptMicroservice {
 
@@ -49,7 +53,7 @@ export class TypescriptMicroservice {
     }: RPCRequestOptions) {
 
         const id = v4()
-        const topic = get_name(service, method)
+        const topic = TopicUtils.get_name(service, method)
 
         return await new Promise<void>(async (success, reject) => {
             const data = Encoder.encode(args)
@@ -97,29 +101,37 @@ export class TypescriptMicroservice {
         })
     }
 
-    static async link_remote_service<T>(service: { new(...args: any[]): T }, exclude_methods: string[] = []) {
+    static async link_remote_service<T>(factory: { new(...args: any[]): T }, exclude_methods: string[] = []) {
 
-        const methods = listLocalRpcMethods(service.prototype)
-        if (methods.length == 0) throw new RemoteServiceNotFound(service)
-        const service_name = methods[0].prototype.constructor.name
+        const methods = listLocalRpcMethods(factory.prototype)
+        if (methods.length == 0) throw new MissingRemoteAction(factory)
+        const service = methods[0].prototype.constructor.name
 
         return new Proxy({}, {
-            get: (_, method) => {
+            get(_, method: string) {
 
-                if (typeof method != 'string' || [...OMIT_EVENTS, ...exclude_methods].includes(method)) return null
+                if (OptionsKeysList.includes(method)) {
 
-                if (method == 'set') return (options: RemoteServiceRequestOptions = {}) => new Proxy({}, {
-                    get: (_, method) => (...args: any[]) => typeof method == 'string' && this.rpc({
-                        args,
-                        method,
-                        service: service_name,
-                        wait_result: true,
-                        ...options
-                    })
+                    const deep_proxy = new DeepProxy(
+                        OptionsKeysList,
+                        options => (...args) => this.rpc({
+                            args,
+                            method,
+                            service,
+                            ...options,
+                        })
+                    )
+
+                    return deep_proxy[method].bind(deep_proxy)
+                }
+
+                return (...args) => this.rpc({
+                    args,
+                    method,
+                    service
                 })
-
-                return (...args: any[]) => typeof method == 'string' && this.rpc({ args, method, service: service_name, wait_result: true })
             }
+
         }) as RemoteRPCService<T>
     }
 
@@ -130,15 +142,15 @@ export class TypescriptMicroservice {
             this.#transporters.set(name, transporter)
             transporter.listen(this.#rpc_topic, async msg => {
 
+                if (!ResponseCallbackList.has(msg.id)) return
+
+
                 const {
                     type,
                     data,
                     message,
                     callback
                 } = Encoder.decode<RemoteServiceResponse>(msg.content)
-
-
-                if (!ResponseCallbackList.has(msg.id)) return
 
                 const { args, reject, success } = ResponseCallbackList.get(msg.id)
 
@@ -162,13 +174,17 @@ export class TypescriptMicroservice {
     }
 
     static async listen({ concurrency, connection, fanout, limit, route, topic }: SubcribeTopicOptions, cb: Function) {
-        const queue = new Queue(concurrency ? { concurrency } : {})
-        return this.get_transporter(connection).listen(get_name(topic), async msg => {
-            try {
-                await queue.add(() => cb(Encoder.decode(msg.content)))
-            } catch (e) { }
-        }, { limit, fanout: fanout ?? true, concurrency, route })
-    }
 
+        const subject = new Subject<Message>()
+
+        const subcription = this
+            .get_transporter(connection)
+            .listen(TopicUtils.get_name(topic), subject.next, { limit, fanout: fanout ?? true, concurrency, route })
+
+        return subject.pipe(
+            mergeMap(msg => cb(Encoder.decode(msg.content)), concurrency),
+            finalize(() => subcription.unsubscribe())
+        ).subscribe()
+    }
 
 }

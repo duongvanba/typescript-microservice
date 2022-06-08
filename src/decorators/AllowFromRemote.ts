@@ -1,11 +1,10 @@
 import { TypescriptMicroservice } from "..";
 import { RPC_HEARTBEAT_TIME } from "../const";
 import { Encoder } from "../Encoder";
-import { get_name } from "../helpers/get_name";
+import { TopicUtils } from "../helpers/TopicUtils";
 import { AllowFromRemoteOptions, RemoteServiceResponse } from "../types";
-import Queue from 'p-queue'
 import { DecoratorBuilder } from "../helpers/DecoratorBuilder";
-
+import { Queue } from '../helpers/Queue'
 
 export const [AllowFromRemote, listLocalRpcMethods, activeLocalServices] = DecoratorBuilder.createPropertyDecorator<AllowFromRemoteOptions>(async function ({
     prototype,
@@ -13,9 +12,10 @@ export const [AllowFromRemote, listLocalRpcMethods, activeLocalServices] = Decor
     options: { concurrency, connection, fanout, limit, route } = {} as AllowFromRemoteOptions
 }) {
     const service_id = prototype.constructor.name
-    const topic = get_name(service_id, method)
-    const queue = new Queue(concurrency ? { concurrency } : {})
+    const topic = TopicUtils.get_name(service_id, method)
+    const queue = new Queue(concurrency)
     const transporter = TypescriptMicroservice.get_transporter(connection)
+    
     await transporter.listen(topic, async (msg) => {
 
         const publish = (data: RemoteServiceResponse) => transporter.publish(

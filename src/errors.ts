@@ -8,6 +8,14 @@ export class RemoteServiceNotFound extends TypescriptMicroserviceError {
     }
 }
 
+export class MissingRemoteAction extends TypescriptMicroserviceError {
+    constructor(
+        public readonly service: any
+    ) {
+        super()
+    }
+}
+
 export class MissingDefaultTransporter extends TypescriptMicroserviceError { }
 
 export class TransporterNotFound extends TypescriptMicroserviceError {
