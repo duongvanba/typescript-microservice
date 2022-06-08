@@ -108,7 +108,7 @@ export class TypescriptMicroservice {
         const service = methods[0].prototype.constructor.name
 
         return new Proxy({}, {
-            get(_, method: string) {
+            get: (_, method: string) => {
 
                 if (OptionsKeysList.includes(method)) {
 
