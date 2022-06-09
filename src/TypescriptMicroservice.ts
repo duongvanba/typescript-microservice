@@ -106,6 +106,7 @@ export class TypescriptMicroservice {
         const methods = listLocalRpcMethods(factory.prototype)
         if (methods.length == 0) throw new MissingRemoteAction(factory)
         const service = methods[0].prototype.constructor.name
+        const rpc_methods = methods.map(m => m.method)
 
         return new Proxy({}, {
             get: (_, method: string) => {
@@ -114,22 +115,25 @@ export class TypescriptMicroservice {
 
                     const deep_proxy = new DeepProxy(
                         OptionsKeysList,
-                        options => (...args) => this.rpc({
+                        options => rpc_methods.includes(method) ? (...args) => this.rpc({
                             args,
                             method,
                             service,
                             ...options,
-                        })
+                        }) : undefined
                     )
 
                     return deep_proxy[method].bind(deep_proxy)
                 }
 
-                return (...args) => this.rpc({
-                    args,
-                    method,
-                    service
-                })
+                if (rpc_methods.includes(method)) {
+                    return (...args) => this.rpc({
+                        args,
+                        method,
+                        service
+                    })
+                }
+
             }
 
         }) as RemoteRPCService<T>
