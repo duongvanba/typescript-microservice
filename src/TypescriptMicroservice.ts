@@ -35,10 +35,10 @@ export class TypescriptMicroservice {
         return transporter
     }
 
-    static async publish<T>(topic: string, data: T, connection: string = 'default') {
+    static async publish<T>(topic: string, data?: T, connection: string = 'default') {
         this.get_transporter(connection).publish(
             topic,
-            Buffer.from(JSON.stringify(data))
+            Buffer.from(JSON.stringify(data ?? {}))
         )
     }
 
