@@ -8,6 +8,6 @@ export const [SubcribeTopic, listTopicListeners, activeTopicListeners] = Decorat
 }) {
     await TypescriptMicroservice.listen(
         options,
-        this[method]
+        (...args) => this[method](...args)
     )
 }) 

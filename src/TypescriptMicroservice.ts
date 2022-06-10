@@ -183,7 +183,11 @@ export class TypescriptMicroservice {
 
         const subcription = this
             .get_transporter(connection)
-            .listen(TopicUtils.get_name(topic), subject.next, { limit, fanout: fanout ?? true, concurrency, route })
+            .listen(
+                TopicUtils.get_name(topic),
+                data => subject.next(data),
+                { limit, fanout: fanout ?? true, concurrency, route }
+            )
 
         return subject.pipe(
             mergeMap(msg => cb(Encoder.decode(msg.content)), concurrency),
