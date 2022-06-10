@@ -109,33 +109,17 @@ export class TypescriptMicroservice {
         const rpc_methods = methods.map(m => m.method)
 
         return new Proxy({}, {
-            get: (_, method: string) => {
-
-                if (OptionsKeysList.includes(method)) {
-
-                    const deep_proxy = new DeepProxy(
-                        OptionsKeysList,
-                        options => rpc_methods.includes(method) ? (...args) => this.rpc({
-                            args,
-                            method,
-                            service,
-                            ...options,
-                        }) : undefined
-                    )
-
-                    return deep_proxy[method].bind(deep_proxy)
-                }
-
-                if (rpc_methods.includes(method)) {
-                    return (...args) => this.rpc({
+            get: (_, method: string) => new DeepProxy(
+                OptionsKeysList,
+                (method: string, options) => {
+                    return rpc_methods.includes(method) ? (...args) => this.rpc({
                         args,
                         method,
-                        service
-                    })
+                        service,
+                        ...options,
+                    }) : undefined
                 }
-
-            }
-
+            ).nest()[method]
         }) as RemoteRPCService<T>
     }
 
