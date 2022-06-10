@@ -21,7 +21,7 @@ const ResponseCallbackList = new Map<string, {
     args: any[]
 }>()
 
-const OptionsKeysList = ['waitResult', 'routeTo', 'timeoutMs', 'useConnection']
+const OptionsKeysList = ['wait_result', 'route', 'timeout', 'connection']
 
 export class TypescriptMicroservice {
 
