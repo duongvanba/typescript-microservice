@@ -161,7 +161,7 @@ export class TypescriptMicroservice {
         }
     }
 
-    static async listen({ concurrency, connection, fanout, limit, route, topic }: SubcribeTopicOptions, cb: Function) {
+    static listen({ concurrency, connection, fanout, limit, route, topic }: SubcribeTopicOptions, cb: Function) {
 
         const subject = new Subject<Message>()
 
