@@ -10,7 +10,7 @@ export const createMicroserviceEvent = <T>(options: SubcribeTopicOptions) => {
     const publish = (data?: T) => TypescriptMicroservice.publish(options.topic, data ?? {}, options.connection)
     const listen = (fn: (data: T) => any) => { TypescriptMicroservice.listen(options, fn) }
     const subscribe = () => SubcribeTopic(options)
-    const stream = async () => {
+    const stream = () => {
         const subject = new Subject<T>()
         const subcription = TypescriptMicroservice.listen(options, event => subject.next(event))
         return subject.pipe(
