@@ -123,7 +123,7 @@ export class TypescriptMicroservice {
 
                 const { args, reject, success, timeout, request_time } = ResponseCallbackList.get(msg.id)
 
-                if (timeout && Date.now() - request_time < timeout) return
+                if (timeout && Date.now() - request_time > timeout) return
 
                 // Process done
                 if (type == 'response' || type == 'error') {
