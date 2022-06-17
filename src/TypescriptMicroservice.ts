@@ -9,7 +9,7 @@ import { sleep } from "./helpers/sleep";
 import { MissingRemoteAction, RemoteServiceOffline, TransporterNotFound } from "./errors";
 import { listLocalRpcMethods } from "./decorators/AllowFromRemote";
 import { Subject } from "rxjs";
-import { finalize, mergeMap } from "rxjs/operators";
+import { finalize, map, mergeMap } from "rxjs/operators";
 import { DeepProxy } from './helpers/DeepProxy'
 
 const ResponseCallbackList = new Map<string, {
@@ -161,7 +161,7 @@ export class TypescriptMicroservice {
         }
     }
 
-    static listen({ concurrency, connection, fanout, limit, route, topic }: SubcribeTopicOptions, cb: Function) {
+    static listen({ concurrency, connection, fanout, limit, route, topic }: SubcribeTopicOptions) {
 
         const subject = new Subject<Message>()
 
@@ -174,9 +174,9 @@ export class TypescriptMicroservice {
             )
 
         return subject.pipe(
-            mergeMap(msg => cb(Encoder.decode(msg.content)), concurrency),
+            map(msg => Encoder.decode(msg.content)),
             finalize(() => subcription.unsubscribe())
-        ).subscribe()
+        )
     }
 
 }

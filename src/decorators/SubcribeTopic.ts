@@ -6,8 +6,5 @@ export const [SubcribeTopic, listTopicListeners, activeTopicListeners] = Decorat
     method,
     options
 }) {
-    await TypescriptMicroservice.listen(
-        options,
-        (...args) => this[method](...args)
-    )
+    TypescriptMicroservice.listen(options).subscribe(this[method])
 }) 
