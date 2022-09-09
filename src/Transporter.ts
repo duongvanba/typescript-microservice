@@ -12,8 +12,7 @@ export type PublishOptions = {
 export type ListenOptions = {
     fanout?: boolean,
     limit?: number,
-    route?: any
-    concurrency?: number
+    route?: any 
 }
 
 

@@ -1,15 +1,12 @@
 
-import { Message, PublishOptions, Transporter } from "./Transporter";
+import { PublishOptions, Transporter } from "./Transporter";
 import { v4 } from 'uuid'
-import { Encoder } from "./Encoder";
+import { Encoder } from "./helpers/Encoder";
 import { RPC_OFFLINE_TIME } from "./const";
 import { TopicUtils } from "./helpers/TopicUtils";
 import { RPCRequestOptions, RemoteRPCService, RemoteServiceResponse, SubcribeTopicOptions } from "./types";
-import { sleep } from "./helpers/sleep";
 import { MissingRemoteAction, RemoteServiceOffline, TransporterNotFound } from "./errors";
 import { listLocalRpcMethods } from "./decorators/AllowFromRemote";
-import { Subject } from "rxjs";
-import { finalize, map, mergeMap } from "rxjs/operators";
 import { DeepProxy } from './helpers/DeepProxy'
 
 const ResponseCallbackList = new Map<string, {
@@ -17,7 +14,6 @@ const ResponseCallbackList = new Map<string, {
     success: Function,
     request_time: number,
     timeout?: number
-    last_ping?: number,
     args: any[]
 }>()
 
@@ -64,11 +60,12 @@ export class TypescriptMicroservice {
                 return
             }
 
+            const request_time = Date.now()
             ResponseCallbackList.set(id, {
                 success,
                 reject,
                 timeout,
-                request_time: Date.now(),
+                request_time,
                 args
             })
 
@@ -80,24 +77,8 @@ export class TypescriptMicroservice {
                 timeout
             })
 
-            // Monitor request
-            setImmediate(async () => {
-                await sleep(timeout + 1000)
-                while (ResponseCallbackList.has(id)) {
-                    const { request_time, last_ping, args } = ResponseCallbackList.get(id)
-                    if ((Date.now() - (last_ping || request_time)) > timeout) {
-                        reject(new RemoteServiceOffline(
-                            service,
-                            method,
-                            request_time,
-                            Date.now() - request_time,
-                            args
-                        ))
-                        return
-                    }
-                    await sleep(timeout)
-                }
-            })
+            if (timeout) setTimeout(() => reject(new RemoteServiceOffline(service, method, request_time, Date.now() - request_time, args)), timeout)
+
         })
     }
 
@@ -140,7 +121,9 @@ export class TypescriptMicroservice {
                     callback
                 } = Encoder.decode<RemoteServiceResponse>(msg.content)
 
-                const { args, reject, success } = ResponseCallbackList.get(msg.id)
+                const { args, reject, success, timeout, request_time } = ResponseCallbackList.get(msg.id)
+
+                if (timeout && Date.now() - request_time > timeout) return
 
                 // Process done
                 if (type == 'response' || type == 'error') {
@@ -155,28 +138,22 @@ export class TypescriptMicroservice {
                     args[callback.index](...callback.args)
                 }
 
-                ResponseCallbackList.get(msg.id).last_ping = Date.now()
-
             }, { fanout: false })
         }
     }
 
-    static listen({ concurrency, connection, fanout, limit, route, topic }: SubcribeTopicOptions) {
+    static listen<T>({ connection, fanout, limit, route, topic }: SubcribeTopicOptions, cb: (data: T) => any) {
 
-        const subject = new Subject<Message>()
 
-        const subcription = this
+        const subscription = this
             .get_transporter(connection)
             .listen(
                 TopicUtils.get_name(topic),
-                data => subject.next(data),
-                { limit, fanout: fanout ?? true, concurrency, route }
+                data => cb(Encoder.decode<T>(data.content)),
+                { limit, fanout: fanout ?? true, route }
             )
 
-        return subject.pipe(
-            map(msg => Encoder.decode(msg.content)),
-            finalize(() => subcription.unsubscribe())
-        )
+        return { unsubscribe: () => subscription.unsubscribe() }
     }
 
 }
