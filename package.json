@@ -1,19 +1,20 @@
 {
   "name": "typescript-microservice",
-  "version": "1.0.54",
+  "version": "1.0.55",
   "main": "dist/index.js",
   "license": "MIT",
   "repository": "https://github.com/duongvanba/typescript-microservice",
-  "dependencies": {  
+  "dependencies": {
     "reflect-metadata": "^0.1.13",
-    "rxjs": "^7.5.5", 
+    "rxjs": "^7.5.5",
+    "typescript": "4.8.3",
     "uuid": "^8.3.2"
-  }, 
+  },
   "devDependencies": {
     "@types/node": "^17.0.41",
     "@types/uuid": "^8.3.2"
   },
   "scripts": {
-    "build": "tsc -b ."
+    "build": "clear; tsc -v; tsc -b ."
   }
 }

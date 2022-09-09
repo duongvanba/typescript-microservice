@@ -1,5 +1,5 @@
 
-import { Message, Transporter } from "./Transporter";
+import { Message, PublishOptions, Transporter } from "./Transporter";
 import { v4 } from 'uuid'
 import { Encoder } from "./Encoder";
 import { RPC_OFFLINE_TIME } from "./const";
@@ -35,10 +35,11 @@ export class TypescriptMicroservice {
         return transporter
     }
 
-    static async publish<T>(topic: string, data?: T, connection: string = 'default') {
+    static async publish<T = {}>(topic: string, data: T = {} as T, { connection, ...options }: PublishOptions = {}) {
         this.get_transporter(connection).publish(
-            topic,
-            Buffer.from(JSON.stringify(data ?? {}))
+            TopicUtils.get_name(topic),
+            Buffer.from(JSON.stringify(data ?? {})),
+            options
         )
     }
 
@@ -53,15 +54,12 @@ export class TypescriptMicroservice {
     }: RPCRequestOptions) {
 
         const id = v4()
-        const topic = TopicUtils.get_name(service, method)
+        const topic = `${service}.${method}`
 
         return await new Promise<void>(async (success, reject) => {
-            const data = Encoder.encode(args)
-
-            const transporter = this.get_transporter(connection)
 
             if (wait_result == false) {
-                await transporter.publish(topic, data, { id, route })
+                await this.publish(topic, args, { id, route, connection })
                 success()
                 return
             }
@@ -74,10 +72,12 @@ export class TypescriptMicroservice {
                 args
             })
 
-            await transporter.publish(topic, data, {
+            await this.publish(topic, args, {
                 id,
                 route,
-                reply_to: TypescriptMicroservice.#rpc_topic
+                reply_to: TypescriptMicroservice.#rpc_topic,
+                connection,
+                timeout
             })
 
             // Monitor request
