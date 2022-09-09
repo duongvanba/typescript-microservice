@@ -1,19 +1,17 @@
-import { Subscription } from 'rxjs'
+import { Subscription } from "rxjs"
+
 
 
 export type PublishOptions = {
-    id?: string
-    reply_to?: string,
     route?: string
-    timeout?: number
-    connection?:string 
 }
 
 export type ListenOptions = {
     fanout?: boolean,
     limit?: number,
-    route?: any 
+    route?: string | { [key: string]: string | number } | (() => Promise<string | { [key: string]: string | number }>)
 }
+
 
 
 export type Message = {

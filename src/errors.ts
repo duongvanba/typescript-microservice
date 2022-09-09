@@ -1,8 +1,10 @@
-export class TypescriptMicroserviceError extends Error { }
+export class TypescriptMicroserviceError extends Error {
 
-export class RemoteServiceNotFound extends TypescriptMicroserviceError {
+}
+
+export class ConnectionNotFound extends TypescriptMicroserviceError {
     constructor(
-        public readonly service: any
+        public readonly connection_name: any
     ) {
         super()
     }
@@ -16,24 +18,15 @@ export class MissingRemoteAction extends TypescriptMicroserviceError {
     }
 }
 
-export class MissingDefaultTransporter extends TypescriptMicroserviceError { }
-
-export class TransporterNotFound extends TypescriptMicroserviceError {
-    constructor(
-        public readonly transporter_id: string
-    ) {
-        super()
-    }
-}
-
 
 export class RemoteServiceOffline extends TypescriptMicroserviceError {
     constructor(
         public readonly service_id: string,
         public readonly method: string,
         public readonly request_time: number,
-        public readonly waited_duration: number,
+        public readonly request_id: string,
         public readonly args: any[],
+        public readonly route: string
     ) {
         super()
     }

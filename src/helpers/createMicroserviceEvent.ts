@@ -1,20 +1,30 @@
-import { finalize, Subject } from "rxjs"
+import { Subject } from "rxjs"
 import { TypescriptMicroservice } from ".."
 import { SubcribeTopic } from "../decorators/SubcribeTopic"
-import { SubcribeTopicOptions } from "../types"
+import { ListenOptions } from '../Transporter'
 
+export const createMicroserviceEvent = <T>(topic: string, connection_name: string = 'default') => {
 
-export const createMicroserviceEvent = <T>(options: SubcribeTopicOptions) => {
+    const connection_online = TypescriptMicroservice.get_connection(connection_name)
 
+    const publish = async (data?: T) => connection_online.then(c => c.publish(topic, {
+        type: 'event',
+        data
+    }))
 
-    const publish = (data?: T) => TypescriptMicroservice.publish(options.topic, data ?? {}, { connection: options.connection })
-    const subscribe = () => SubcribeTopic(options)
-    const stream = () => {
+    const subscribe = (options: ListenOptions = {}) => SubcribeTopic({ ...options, topic, connection: connection_name })
+
+    const stream = (options: ListenOptions = {}) => {
         const subject = new Subject<T>()
-        const subcription = TypescriptMicroservice.listen<T>(options, event => subject.next(event))
-        return subject.pipe(
-            finalize(() => subcription.unsubscribe())
-        )
+
+        connection_online.then(connection => connection.listen(topic, options, event => {
+            if (event.type == 'event') {
+                subject.next(event.data)
+            }
+        }))
+
+
+        return subject
     }
 
 

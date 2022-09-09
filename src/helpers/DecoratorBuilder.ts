@@ -1,7 +1,7 @@
 
 export class DecoratorBuilder {
 
-    static createPropertyDecorator<T>(callback: (args: { prototype, method: string, options: T }) => any) {
+    static createPropertyDecorator<T = void>(callback?: (args: { prototype, method: string, options: T }) => any) {
 
         const key = Symbol()
 
@@ -15,7 +15,7 @@ export class DecoratorBuilder {
 
         const activator = async target => {
             for (const { method, prototype, options } of list(target)) {
-                await callback.bind(target)({ prototype, method, options })
+                await callback?.bind(target)({ prototype, method, options })
             }
         }
 
@@ -23,14 +23,14 @@ export class DecoratorBuilder {
 
     }
 
-    static createClassDecorator(cb?: (target) => any) {
+    static createClassDecorator<ClassDecoratorOptions extends {}>(cb?: (target, options: ClassDecoratorOptions) => any) {
 
-        return () => C => {
+        return (options?: ClassDecoratorOptions) => C => {
             const N = {
                 [C.name]: class extends C {
                     constructor(...args) {
                         super(...args)
-                        cb?.(this)
+                        cb?.(this, options)
                     }
                 }
             }

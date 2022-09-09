@@ -1,34 +1,12 @@
-import { ListenOptions } from "./Transporter"
 
-export type RemoteServiceResponse = {
-    type: 'response' | 'ping' | 'callback' | 'error'
-    data?: any,
-    message?: string,
-    callback?: { index: number, args: any }
-}
+export type MicroserviceRequestEvent = { type: 'request', args: any[], request_id: string, reply_to?: string }
+export type MicroserviceResponseEvent<T = any> = { type: 'response', data: T | void | undefined, request_id: string }
+export type MicroserviceCallbackEvent = { type: 'callback', callback: { index: number, args: any[] }, request_id: string }
+export type MicroserviceRemoteErrorEvent<T = any> = { type: 'error', message: string, data: T, request_id: string }
+export type MicroservicePublishedEvent<T = any> = { type: 'event', data: T | undefined }
 
-export type RemoteServiceRequestOptions = {
-    route?: any,
-    timeout?: number
-    connection?: string
-    wait_result?: boolean
-}
+export type MicroserviceEvent = MicroserviceRequestEvent | MicroserviceResponseEvent | MicroserviceCallbackEvent | MicroserviceRemoteErrorEvent<any> | MicroservicePublishedEvent
 
-export type AllowFromRemoteOptions = ListenOptions & {
-    connection?: string
-}
-
-export type SubcribeTopicOptions = ListenOptions & {
-    topic: string
-    connection?: string
-}
-
-
-export type RPCRequestOptions = RemoteServiceRequestOptions & {
-    service: string,
-    method: string,
-    args: any
-}
 
 export type RemoteRPCService<T> = T & {
     wait_result(wait_result?: boolean): RemoteRPCService<T>,

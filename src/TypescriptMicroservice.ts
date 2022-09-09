@@ -1,45 +1,187 @@
 
-import { PublishOptions, Transporter } from "./Transporter";
+import { ListenOptions, PublishOptions, Transporter } from "./Transporter";
 import { v4 } from 'uuid'
 import { Encoder } from "./helpers/Encoder";
 import { RPC_OFFLINE_TIME } from "./const";
-import { TopicUtils } from "./helpers/TopicUtils";
-import { RPCRequestOptions, RemoteRPCService, RemoteServiceResponse, SubcribeTopicOptions } from "./types";
-import { MissingRemoteAction, RemoteServiceOffline, TransporterNotFound } from "./errors";
+import { MissingRemoteAction, RemoteServiceOffline } from "./errors";
 import { listLocalRpcMethods } from "./decorators/AllowFromRemote";
 import { DeepProxy } from './helpers/DeepProxy'
+import { MicroserviceEvent, RemoteRPCService } from "./types";
+import { listTopicListeners } from "./decorators/SubcribeTopic";
+import { filter, firstValueFrom, ReplaySubject } from "rxjs";
+import { listenReadyHooks } from "./decorators/WhenMicroserviceReady";
 
-const ResponseCallbackList = new Map<string, {
-    reject: Function,
-    success: Function,
-    request_time: number,
-    timeout?: number
-    args: any[]
-}>()
-
-const OptionsKeysList = ['wait_result', 'route', 'timeout', 'connection']
 
 export class TypescriptMicroservice {
 
-    static #rpc_topic = 'typescript-microservice-rpc-topic-' + v4()
+    static #connections = new ReplaySubject<TypescriptMicroservice>(500)
 
-    static #transporters = new Map<string, Transporter>()
-
-    static get_transporter(name: string = 'default') {
-        const transporter = this.#transporters.get(name)
-        if (!transporter) throw new TransporterNotFound(name)
-        return transporter
+    static async get_connection(connection_name: string) {
+        return await firstValueFrom(this.#connections.pipe(
+            filter(c => c.connection_name == connection_name)
+        ))
     }
 
-    static async publish<T = {}>(topic: string, data: T = {} as T, { connection, ...options }: PublishOptions = {}) {
-        this.get_transporter(connection).publish(
-            TopicUtils.get_name(topic),
-            Buffer.from(JSON.stringify(data ?? {})),
+
+    #ResponseCallbackList = new Map<string, {
+        reject: Function,
+        success: Function,
+        request_time: number,
+        timeout?: number
+        args: any[]
+    }>()
+
+    #rpc_topic = `typescript-microservice-rpc-topic-${v4()}`
+
+    constructor(
+        private transporter: Transporter,
+        private namespace: string = process.env.TS_MS_PREFIX || 'default',
+        private connection_name: string = 'default'
+    ) {
+        setImmediate(async () => {
+            await this.#active_responder_for_rpc()
+            TypescriptMicroservice.#connections.next(this)
+        })
+    }
+
+    #get_topic_name_in_namespace(topic: string, method?: string) {
+        return `tsms-${this.namespace}|${topic}${method ? `.${method}` : ''}`
+    }
+
+    async #active_responder_for_rpc() {
+        this.listen(this.#rpc_topic, { fanout: false }, async response => {
+            if (response.type == 'response') {
+                this.#ResponseCallbackList.get(response.request_id)?.success(response.data)
+                this.#ResponseCallbackList.delete(response.request_id)
+                return
+            }
+            if (response.type == 'error') {
+                this.#ResponseCallbackList.get(response.request_id)?.reject(response)
+                this.#ResponseCallbackList.delete(response.request_id)
+                return
+            }
+            if (response.type == 'callback') {
+                const fn = this.#ResponseCallbackList.get(response.request_id)?.args[response.callback.index]
+                typeof fn == 'function' && fn(...response.callback.args)
+                return
+            }
+        })
+    }
+
+    async active_local_services(target: any) {
+        for (const { method, options: { connection = 'default', ...options }, prototype } of listLocalRpcMethods(target)) {
+            if (connection != this.connection_name) continue
+            const service_name = prototype.constructor.name
+
+            this.listen(`${service_name}.${method}`, options, async event => {
+
+
+                if (event.type == 'request') {
+
+
+                    const args = event.args.map((arg, index) => {
+                        if (typeof arg != 'function') return arg
+                        return (...args: any[]) => this.publish(
+                            event.reply_to,
+                            {
+                                type: 'callback',
+                                callback: {
+                                    index,
+                                    args
+                                },
+                                request_id: event.request_id
+                            }
+                        )
+                    })
+
+
+                    try {
+                        const data = await target[method](...args)
+                        await this.publish(event.reply_to, {
+                            type: 'response',
+                            data,
+                            request_id: event.request_id
+                        })
+
+                    } catch (e) {
+                        await this.publish(event.reply_to, {
+                            type: 'error',
+                            data: e,
+                            message: e?.message,
+                            request_id: event.request_id
+                        })
+                        console.error(e)
+                    }
+                }
+            })
+
+        }
+
+    }
+
+
+    async active_event_listeners(target: any) {
+        for (const { method, options: { topic, connection = 'default', ...options } } of listTopicListeners(target)) {
+            if (connection != this.connection_name) continue
+            this.listen(topic, options, async event => {
+                if (event.type == 'event') {
+                    try {
+                        await target[method](event.data)
+                    } catch (e) {
+                        console.error(e)
+                    }
+                }
+            })
+        }
+    }
+
+    async active_ready_hooks(target: any) {
+        for (const { method, options: { connection = 'default' } } of listenReadyHooks(target)) {
+            if (connection != this.connection_name) continue
+            try {
+                await target[method]()
+            } catch (e) {
+                console.error(e)
+            }
+        }
+    }
+
+
+    async publish(
+        topic: string | undefined,
+        data: MicroserviceEvent,
+        { connection, ...options }: Partial<PublishOptions & { connection: string }> = {}
+    ) {
+        if (!topic) return
+        return await this.transporter.publish(
+            this.#get_topic_name_in_namespace(topic),
+            Encoder.encode(data),
             options
         )
     }
 
-    static async rpc({
+
+    async listen(
+        topic: string | undefined,
+        { fanout, limit, route: get_route }: Partial<ListenOptions>,
+        cb: (data: MicroserviceEvent) => any
+    ) {
+        const route = typeof get_route == 'function' ? await get_route() : get_route
+        if (!topic) return
+        const subscription = this.transporter.listen(
+            this.#get_topic_name_in_namespace(topic),
+            data => cb(Encoder.decode<MicroserviceEvent>(data.content)),
+            {
+                limit,
+                fanout: fanout ?? true,
+                route
+            }
+        )
+        return { unsubscribe: () => subscription.unsubscribe() }
+    }
+
+
+    async #rpc({
         args,
         method,
         service,
@@ -47,21 +189,27 @@ export class TypescriptMicroservice {
         route,
         timeout = RPC_OFFLINE_TIME,
         wait_result
-    }: RPCRequestOptions) {
+    }: { args: any[], method: string, service: string, connection: string, route: string, timeout: number, wait_result: boolean }) {
 
-        const id = v4()
         const topic = `${service}.${method}`
+        const request_id = v4()
 
         return await new Promise<void>(async (success, reject) => {
 
+
+
             if (wait_result == false) {
-                await this.publish(topic, args, { id, route, connection })
+                this.publish(
+                    topic,
+                    { type: 'request', args, request_id },
+                    { route, connection }
+                )
                 success()
                 return
             }
 
             const request_time = Date.now()
-            ResponseCallbackList.set(id, {
+            this.#ResponseCallbackList.set(request_id, {
                 success,
                 reject,
                 timeout,
@@ -69,91 +217,48 @@ export class TypescriptMicroservice {
                 args
             })
 
-            await this.publish(topic, args, {
-                id,
-                route,
-                reply_to: TypescriptMicroservice.#rpc_topic,
-                connection,
-                timeout
-            })
+            await this.publish(
+                topic,
+                { type: 'request', args, request_id, reply_to: this.#rpc_topic },
+                {
+                    route,
+                    connection
+                }
+            )
 
-            if (timeout) setTimeout(() => reject(new RemoteServiceOffline(service, method, request_time, Date.now() - request_time, args)), timeout)
+            timeout && setTimeout(() => {
+                reject(new RemoteServiceOffline(service, method, request_time, request_id, args, route))
+                this.#ResponseCallbackList.delete(request_id)
+            }, timeout)
 
         })
     }
 
-    static async link_remote_service<T>(factory: { new(...args: any[]): T }, exclude_methods: string[] = []) {
+    static link_remote_service<T>(factory: { new(...args: any[]): T }, connection_name: string = 'default') {
 
         const methods = listLocalRpcMethods(factory.prototype)
         if (methods.length == 0) throw new MissingRemoteAction(factory)
         const service = methods[0].prototype.constructor.name
         const rpc_methods = methods.map(m => m.method)
+        const promise = this.get_connection(connection_name)
 
         return new Proxy({}, {
             get: (_, method: string) => new DeepProxy(
-                OptionsKeysList,
+                ['wait_result', 'route', 'timeout', 'connection'],
                 (method: string, options) => {
-                    return rpc_methods.includes(method) ? (...args) => this.rpc({
-                        args,
-                        method,
-                        service,
-                        ...options,
-                    }) : undefined
+                    return rpc_methods.includes(method) ? async (...args) => {
+                        const connection = await promise
+                        return await connection.#rpc({
+                            args,
+                            method,
+                            service,
+                            ...options,
+                        })
+                    } : undefined
                 }
             ).nest()[method]
         }) as RemoteRPCService<T>
     }
 
-    static async init(transporters: { default: Transporter, [name: string]: Transporter }) {
-
-        for (const name in transporters) {
-            const transporter = transporters[name]
-            this.#transporters.set(name, transporter)
-            transporter.listen(this.#rpc_topic, async msg => {
-
-                if (!ResponseCallbackList.has(msg.id)) return
-
-
-                const {
-                    type,
-                    data,
-                    message,
-                    callback
-                } = Encoder.decode<RemoteServiceResponse>(msg.content)
-
-                const { args, reject, success, timeout, request_time } = ResponseCallbackList.get(msg.id)
-
-                if (timeout && Date.now() - request_time > timeout) return
-
-                // Process done
-                if (type == 'response' || type == 'error') {
-                    type == 'response' && success(data)
-                    type == 'error' && reject(message)
-                    ResponseCallbackList.delete(msg.id)
-                    return
-                }
-
-                // In progressing
-                if (type == 'callback') {
-                    args[callback.index](...callback.args)
-                }
-
-            }, { fanout: false })
-        }
-    }
-
-    static listen<T>({ connection, fanout, limit, route, topic }: SubcribeTopicOptions, cb: (data: T) => any) {
-
-
-        const subscription = this
-            .get_transporter(connection)
-            .listen(
-                TopicUtils.get_name(topic),
-                data => cb(Encoder.decode<T>(data.content)),
-                { limit, fanout: fanout ?? true, route }
-            )
-
-        return { unsubscribe: () => subscription.unsubscribe() }
-    }
 
 }
