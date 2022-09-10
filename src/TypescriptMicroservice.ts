@@ -68,7 +68,13 @@ export class TypescriptMicroservice {
         })
     }
 
-    async active_local_services(target: any) {
+    async init(target) {
+        this.#active_event_listeners(target)
+        this.#active_local_services(target)
+        this.#active_ready_hooks(target)
+    }
+
+    async #active_local_services(target: any) {
         for (const { method, options: { connection = 'default', ...options }, prototype } of listLocalRpcMethods(target)) {
             if (connection != this.connection_name) continue
             const service_name = prototype.constructor.name
@@ -120,7 +126,7 @@ export class TypescriptMicroservice {
     }
 
 
-    async active_event_listeners(target: any) {
+    async #active_event_listeners(target: any) {
         for (const { method, options: { topic, connection = 'default', ...options } } of listTopicListeners(target)) {
             if (connection != this.connection_name) continue
             this.listen(topic, options, async event => {
@@ -135,7 +141,7 @@ export class TypescriptMicroservice {
         }
     }
 
-    async active_ready_hooks(target: any) {
+    async #active_ready_hooks(target: any) {
         for (const { method, options: { connection = 'default' } } of listenReadyHooks(target)) {
             if (connection != this.connection_name) continue
             try {
@@ -181,7 +187,7 @@ export class TypescriptMicroservice {
     }
 
 
-    async #rpc({
+    async rpc({
         args,
         method,
         service,
@@ -248,7 +254,7 @@ export class TypescriptMicroservice {
                 (method: string, options) => {
                     return rpc_methods.includes(method) ? async (...args) => {
                         const connection = await promise
-                        return await connection.#rpc({
+                        return await connection.rpc({
                             args,
                             method,
                             service,
