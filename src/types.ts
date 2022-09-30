@@ -4,8 +4,9 @@ export type MicroserviceResponseEvent<T = any> = { type: 'response', data: T | v
 export type MicroserviceCallbackEvent = { type: 'callback', callback: { index: number, args: any[] }, request_id: string }
 export type MicroserviceRemoteErrorEvent<T = any> = { type: 'error', message: string, data: T, request_id: string }
 export type MicroservicePublishedEvent<T = any> = { type: 'event', data: T | undefined }
+export type MicroservicePingEvent = { type: 'ping', request_id: string }
 
-export type MicroserviceEvent = MicroserviceRequestEvent | MicroserviceResponseEvent | MicroserviceCallbackEvent | MicroserviceRemoteErrorEvent<any> | MicroservicePublishedEvent
+export type MicroserviceEvent = MicroserviceRequestEvent | MicroserviceResponseEvent | MicroserviceCallbackEvent | MicroserviceRemoteErrorEvent<any> | MicroservicePublishedEvent | MicroservicePingEvent
 
 
 export type RemoteRPCService<T> = T & {

@@ -8,8 +8,10 @@ import { listLocalRpcMethods } from "./decorators/AllowFromRemote";
 import { DeepProxy } from './helpers/DeepProxy'
 import { MicroserviceEvent, RemoteRPCService } from "./types";
 import { listTopicListeners } from "./decorators/SubcribeTopic";
-import { filter, firstValueFrom, ReplaySubject } from "rxjs";
+import { ReplaySubject, firstValueFrom } from "rxjs";
 import { listenReadyHooks } from "./decorators/WhenMicroserviceReady";
+import { filter, last } from 'rxjs/operators'
+import { sleep } from "./helpers/sleep";
 
 
 export class TypescriptMicroservice {
@@ -28,7 +30,11 @@ export class TypescriptMicroservice {
         success: Function,
         request_time: number,
         timeout?: number
-        args: any[]
+        args: any[],
+        last_ping: number,
+        route?: string,
+        service: string
+        method: string
     }>()
 
     #rpc_topic = `typescript-microservice-rpc-topic-${v4()}`
@@ -56,7 +62,7 @@ export class TypescriptMicroservice {
                 return
             }
             if (response.type == 'error') {
-                this.#ResponseCallbackList.get(response.request_id)?.reject(response)
+                this.#ResponseCallbackList.get(response.request_id)?.reject(response.data)
                 this.#ResponseCallbackList.delete(response.request_id)
                 return
             }
@@ -65,7 +71,30 @@ export class TypescriptMicroservice {
                 typeof fn == 'function' && fn(...response.callback.args)
                 return
             }
+
+            if (response.type == 'ping') {
+                const req = this.#ResponseCallbackList.get(response.request_id)
+                if (req) {
+                    req.last_ping = Date.now()
+                }
+            }
         })
+
+        setInterval(() => {
+            for (const [request_id, { timeout, last_ping, reject, args, request_time, success, method, service, route }] of this.#ResponseCallbackList) {
+                if (Date.now() - last_ping > timeout) {
+                    reject(new RemoteServiceOffline(
+                        service,
+                        method,
+                        request_time,
+                        request_id,
+                        args,
+                        route
+                    ))
+                    this.#ResponseCallbackList.delete(request_id)
+                }
+            }
+        }, RPC_OFFLINE_TIME)
     }
 
     async init(target) {
@@ -84,6 +113,10 @@ export class TypescriptMicroservice {
 
                 if (event.type == 'request') {
 
+                    const ping_intervel = setInterval(
+                        () => this.publish(event.reply_to, { request_id: event.request_id, type: 'ping' }),
+                        RPC_OFFLINE_TIME - 10000
+                    )
 
                     const args = event.args.map((arg, index) => {
                         if (typeof arg != 'function') return arg
@@ -118,6 +151,8 @@ export class TypescriptMicroservice {
                         })
                         console.error(e)
                     }
+
+                    clearInterval(ping_intervel)
                 }
             })
 
@@ -202,8 +237,6 @@ export class TypescriptMicroservice {
 
         return await new Promise<void>(async (success, reject) => {
 
-
-
             if (wait_result == false) {
                 this.publish(
                     topic,
@@ -220,7 +253,11 @@ export class TypescriptMicroservice {
                 reject,
                 timeout,
                 request_time,
-                args
+                args,
+                last_ping: Date.now(),
+                method,
+                service,
+                route
             })
 
             await this.publish(
@@ -231,11 +268,6 @@ export class TypescriptMicroservice {
                     connection
                 }
             )
-
-            timeout && setTimeout(() => {
-                reject(new RemoteServiceOffline(service, method, request_time, request_id, args, route))
-                this.#ResponseCallbackList.delete(request_id)
-            }, timeout)
 
         })
     }
