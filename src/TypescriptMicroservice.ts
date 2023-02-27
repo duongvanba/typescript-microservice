@@ -149,7 +149,7 @@ export class TypescriptMicroservice {
                             message: e?.message,
                             request_id: event.request_id
                         })
-                        console.error(e)
+                        process.env.TSMS_DEBUG && console.error(e)
                     }
 
                     clearInterval(ping_intervel)
@@ -169,7 +169,7 @@ export class TypescriptMicroservice {
                     try {
                         await target[method](event.data)
                     } catch (e) {
-                        console.error(e)
+                        process.env.TSMS_DEBUG && console.error(e)
                     }
                 }
             })
@@ -182,7 +182,7 @@ export class TypescriptMicroservice {
             try {
                 await target[method]()
             } catch (e) {
-                console.error(e)
+                process.env.TSMS_DEBUG && console.error(e)
             }
         }
     }
